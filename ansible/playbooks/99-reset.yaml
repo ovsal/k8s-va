@@ -1,0 +1,5 @@
+---
+- name: DESTRUCTIVE — Reset Kubernetes cluster
+  ansible.builtin.import_playbook: ../kubespray/reset.yml
+  vars:
+    reset_confirmation: "yes"

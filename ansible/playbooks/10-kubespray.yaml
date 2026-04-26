@@ -1,0 +1,5 @@
+---
+# Запускает Kubespray cluster.yml с нашим inventory
+# Kubespray предоставляет всё необходимое для bootstrap HA кластера.
+- name: Bootstrap Kubernetes cluster via Kubespray
+  ansible.builtin.import_playbook: ../kubespray/cluster.yml
