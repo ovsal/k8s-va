@@ -1,0 +1,37 @@
+---
+# Internal CA issuer (корпоративный CA)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: internal-ca-secret
+  namespace: cert-manager
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |
+    # ЗАМЕНИТЬ: вставить содержимое INTERNAL_CA_CERT
+  tls.key: |
+    # ЗАМЕНИТЬ: вставить содержимое INTERNAL_CA_KEY
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca
+spec:
+  ca:
+    secretName: internal-ca-secret
+---
+# Let's Encrypt production issuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@company.com   # ЗАМЕНИТЬ
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

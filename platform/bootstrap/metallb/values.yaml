@@ -1,0 +1,12 @@
+controller:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  nodeSelector:
+    kubernetes.io/os: linux
+speaker:
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  nodeSelector:
+    kubernetes.io/os: linux

@@ -1,0 +1,22 @@
+controller:
+  kind: DaemonSet
+  service:
+    type: LoadBalancer
+    annotations:
+      metallb.universe.tf/address-pool: main-pool
+  ingressClassResource:
+    name: nginx
+    default: true
+  config:
+    use-real-ip: "true"
+    compute-full-forwarded-for: "true"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "10254"

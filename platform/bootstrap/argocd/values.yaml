@@ -1,0 +1,42 @@
+global:
+  domain: argocd.k8s.company.com   # ЗАМЕНИТЬ
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: internal-ca
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    tls: true
+  config:
+    # URL репозитория платформы (публичный или с deploy key)
+    repositories: |
+      - url: https://github.com/company/k8s-platform.git
+  rbacConfig:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:sre, applications, *, */*, allow
+      p, role:sre, clusters, get, *, allow
+      p, role:sre, repositories, *, *, allow
+      g, sre-team, role:sre
+
+configs:
+  params:
+    server.insecure: false
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+applicationSet:
+  enabled: true
+
+notifications:
+  enabled: true
+
+dex:
+  enabled: false   # включить позже для OIDC
