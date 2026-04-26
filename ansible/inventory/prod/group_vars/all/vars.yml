@@ -1,0 +1,11 @@
+---
+# kube-vip: VIP для kube-apiserver (внешний адрес для kubectl)
+kube_vip_enabled: true
+kube_vip_arp_enabled: true
+kube_vip_interface: "{{ node_iface }}"   # enp3s0 / eth0 / ens3
+loadbalancer_apiserver_address: "192.168.1.100"   # ЗАМЕНИТЬ на API_VIP
+
+# Используемый runtime
+container_manager: containerd
+
+# NTP — уже настроен host-prep ролью

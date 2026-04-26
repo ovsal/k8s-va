@@ -1,0 +1,10 @@
+---
+# Все аддоны ставим через Argo CD, не через Kubespray
+helm_enabled: false
+metrics_server_enabled: false   # поставим через kube-prometheus-stack
+dashboard_enabled: false
+ingress_nginx_enabled: false
+cert_manager_enabled: false
+metallb_enabled: false
+
+# helm binary установим в post-bootstrap playbook
