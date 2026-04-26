@@ -1,0 +1,12 @@
+---
+- name: Add corporate CA to trusted store
+  copy:
+    content: "{{ corporate_ca_cert }}"
+    dest: /usr/local/share/ca-certificates/corporate-ca.crt
+    mode: '0644'
+  when: corporate_ca_cert != ""
+  notify: update ca-certificates
+
+- name: Ensure CA store is up to date
+  command: update-ca-certificates
+  changed_when: false

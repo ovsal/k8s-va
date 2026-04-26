@@ -1,0 +1,4 @@
+---
+- import_tasks: system.yml
+- import_tasks: containerd.yml
+- import_tasks: ca-trust.yml

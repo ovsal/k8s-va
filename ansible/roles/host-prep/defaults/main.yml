@@ -1,0 +1,23 @@
+---
+kernel_modules:
+  - overlay
+  - br_netfilter
+
+sysctl_params:
+  net.ipv4.ip_forward: 1
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  fs.inotify.max_user_watches: 524288
+  fs.inotify.max_user_instances: 512
+  vm.overcommit_memory: 1
+  kernel.panic: 10
+  kernel.panic_on_oops: 1
+
+containerd_version: "1.7.*"
+containerd_config_dir: /etc/containerd
+
+ntp_servers:
+  - 0.ubuntu.pool.ntp.org
+  - 1.ubuntu.pool.ntp.org
+
+corporate_ca_cert: ""   # заполнить PEM строкой или передать как extra-var

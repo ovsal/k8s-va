@@ -1,0 +1,47 @@
+---
+- name: Add Docker/containerd GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add containerd repo
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: Install containerd
+  apt:
+    name: "containerd.io={{ containerd_version }}"
+    state: present
+    update_cache: true
+
+- name: Ensure containerd config dir exists
+  file:
+    path: "{{ containerd_config_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Generate default containerd config
+  shell: containerd config default > {{ containerd_config_dir }}/config.toml
+  args:
+    creates: "{{ containerd_config_dir }}/config.toml"
+
+- name: Enable SystemdCgroup in containerd
+  replace:
+    path: "{{ containerd_config_dir }}/config.toml"
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+
+- name: Set sandbox image to registry.k8s.io
+  replace:
+    path: "{{ containerd_config_dir }}/config.toml"
+    regexp: 'sandbox_image = "registry.k8s.io/pause:.*"'
+    replace: 'sandbox_image = "registry.k8s.io/pause:3.9"'
+
+- name: Enable and restart containerd
+  systemd:
+    name: containerd
+    enabled: true
+    state: restarted
+    daemon_reload: true

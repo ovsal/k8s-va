@@ -1,0 +1,28 @@
+---
+- name: Verify host-prep role
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: swap is off
+      command: swapon --show
+      register: swap_out
+      changed_when: false
+      failed_when: swap_out.stdout != ""
+
+    - name: ip_forward is enabled
+      command: sysctl -n net.ipv4.ip_forward
+      register: ipfwd
+      changed_when: false
+      failed_when: ipfwd.stdout | trim != "1"
+
+    - name: containerd is running
+      systemd:
+        name: containerd
+      register: containerd_svc
+      failed_when: containerd_svc.status.ActiveState != "active"
+
+    - name: chrony is running
+      systemd:
+        name: chronyd
+      register: chrony_svc
+      failed_when: chrony_svc.status.ActiveState != "active"

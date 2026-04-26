@@ -1,0 +1,8 @@
+---
+- name: restart chrony
+  systemd:
+    name: chronyd
+    state: restarted
+
+- name: update ca-certificates
+  command: update-ca-certificates

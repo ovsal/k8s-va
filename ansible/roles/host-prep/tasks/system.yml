@@ -1,0 +1,63 @@
+---
+- name: Disable swap immediately
+  command: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: Remove swap from fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    replace: '# \1'
+
+- name: Load kernel modules now
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ kernel_modules }}"
+
+- name: Persist kernel modules
+  copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: "{{ kernel_modules | join('\n') }}\n"
+    mode: '0644'
+
+- name: Set sysctl params
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+    reload: true
+  loop: "{{ sysctl_params | dict2items }}"
+
+- name: Install base packages
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - rsync
+      - nfs-common
+      - open-iscsi
+    state: present
+    update_cache: true
+
+- name: Install chrony
+  apt:
+    name: chrony
+    state: present
+
+- name: Configure chrony
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony/chrony.conf
+    mode: '0644'
+  notify: restart chrony
+
+- name: Enable and start chrony
+  systemd:
+    name: chronyd
+    enabled: true
+    state: started
