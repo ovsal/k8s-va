@@ -1,0 +1,9 @@
+*.retry
+.vault_pass
+*.pem
+*.key
+kubeconfig
+.env
+__pycache__/
+*.pyc
+.DS_Store
