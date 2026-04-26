@@ -1,0 +1,37 @@
+---
+# Ежедневный backup всего кластера (все namespaces)
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-full
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"    # 02:00 каждый день
+  template:
+    storageLocation: default
+    ttl: 720h               # хранить 30 дней
+    includedNamespaces:
+      - '*'
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+    includeClusterResources: true
+    snapshotVolumes: false   # для NFS/S3 snapshotting не нужен
+---
+# Еженедельный backup с PVC
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-with-volumes
+  namespace: velero
+spec:
+  schedule: "0 3 * * 0"    # 03:00 каждое воскресенье
+  template:
+    storageLocation: default
+    ttl: 2160h              # 90 дней
+    includedNamespaces:
+      - '*'
+    excludedNamespaces:
+      - kube-system
+    includeClusterResources: true
+    snapshotVolumes: false

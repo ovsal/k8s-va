@@ -1,0 +1,19 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: policies
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+    targetRevision: main
+    path: platform/apps/policies/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

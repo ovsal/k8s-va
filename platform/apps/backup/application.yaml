@@ -1,0 +1,27 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+spec:
+  project: platform
+  sources:
+    - repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+      targetRevision: main
+      ref: values
+    - repoURL: https://vmware-tanzu.github.io/helm-charts
+      chart: velero
+      targetRevision: 7.1.4
+      helm:
+        valueFiles:
+          - $values/platform/apps/backup/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

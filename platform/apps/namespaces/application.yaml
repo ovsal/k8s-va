@@ -1,0 +1,21 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: namespaces
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+    targetRevision: main
+    path: platform/apps/namespaces/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: false   # не удалять namespaces автоматически
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

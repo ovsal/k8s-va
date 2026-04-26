@@ -1,0 +1,67 @@
+grafana:
+  enabled: true
+  adminPassword: "changeme123!"   # ЗАМЕНИТЬ — вынести в Vault после Task 9
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: internal-ca
+    hosts:
+      - grafana.k8s.company.com   # ЗАМЕНИТЬ
+    tls:
+      - secretName: grafana-tls
+        hosts: [grafana.k8s.company.com]
+  persistence:
+    enabled: true
+    storageClassName: nfs-shared
+    size: 10Gi
+  defaultDashboardsEnabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    retentionSize: "50GB"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: nfs-shared
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: nfs-shared
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 5Gi
+
+kubeEtcd:
+  enabled: true
+  endpoints:
+    - 192.168.1.10    # ЗАМЕНИТЬ — IP control-plane нод
+    - 192.168.1.11
+    - 192.168.1.12
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

@@ -1,0 +1,12 @@
+controller:
+  replicas: 2
+  resources:
+    limits:
+      cpu: 100m
+      memory: 300Mi
+
+node:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 300Mi

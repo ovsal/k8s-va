@@ -1,0 +1,40 @@
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: k8s-velero-backup   # ЗАМЕНИТЬ на S3_BUCKET
+      config:
+        region: us-east-1          # ЗАМЕНИТЬ или оставить для minio
+        s3Url: https://s3.company.com   # ЗАМЕНИТЬ на S3_ENDPOINT
+        s3ForcePathStyle: "true"
+
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: us-east-1
+
+credentials:
+  useSecret: true
+  # S3 credentials поставляются через ExternalSecret (secret velero-credentials)
+  existingSecret: velero-credentials
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.10.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true

@@ -1,0 +1,30 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-shared
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 10.0.0.50        # ЗАМЕНИТЬ на NFS_SERVER
+  share: /exports/k8s      # ЗАМЕНИТЬ на NFS_PATH
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+mountOptions:
+  - hard
+  - nfsvers=4.1
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-fast
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: 10.0.0.50        # ЗАМЕНИТЬ на NFS_SERVER
+  share: /exports/k8s-fast # ЗАМЕНИТЬ на NFS_PATH_FAST
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+mountOptions:
+  - hard
+  - nfsvers=4.1

@@ -1,0 +1,27 @@
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem   # заменить на s3 если есть S3 объектное хранилище
+  schemaConfig:
+    configs:
+      - from: 2024-01-01
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 1
+  persistence:
+    storageClass: nfs-shared
+    size: 50Gi
+
+# Grafana datasource будет добавлен через sidecar в kube-prometheus-stack
+gateway:
+  enabled: false

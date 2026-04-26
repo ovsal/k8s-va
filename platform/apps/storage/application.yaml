@@ -1,0 +1,32 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nfs-csi
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+      targetRevision: main
+      ref: values
+    - repoURL: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
+      chart: csi-driver-nfs
+      targetRevision: v4.7.0
+      helm:
+        valueFiles:
+          - $values/platform/apps/storage/values.yaml
+    - repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+      targetRevision: main
+      path: platform/apps/storage
+      directory:
+        include: 'storage-classes.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

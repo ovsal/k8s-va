@@ -1,0 +1,13 @@
+config:
+  clients:
+    - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+
+serviceMonitor:
+  enabled: true
+  namespaceSelector:
+    matchNames:
+      - monitoring

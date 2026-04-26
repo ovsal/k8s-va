@@ -1,0 +1,36 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: va-services
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/company/va-services.git   # репо с сервисами
+        revision: main
+        directories:
+          - path: "services/*"
+  template:
+    metadata:
+      name: '{{`{{path.basename}}`}}-prod'
+      namespace: argocd
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/company/va-services.git   # ЗАМЕНИТЬ
+        targetRevision: main
+        path: '{{`{{path}}`}}'
+        helm:
+          valueFiles:
+            - values.yaml
+            - values-prod.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: va-prod
+      syncPolicy:
+        automated:
+          prune: false          # prod: ручное удаление
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
