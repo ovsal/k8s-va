@@ -13,7 +13,7 @@ grafana:
         hosts: [grafana.k8s.va.atmodev.net]
   persistence:
     enabled: true
-    storageClassName: nfs-shared
+    storageClassName: local-path
     size: 10Gi
   defaultDashboardsEnabled: true
   sidecar:
@@ -27,7 +27,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: nfs-shared
+          storageClassName: local-path
           accessModes: [ReadWriteOnce]
           resources:
             requests:
@@ -47,7 +47,7 @@ alertmanager:
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: nfs-shared
+          storageClassName: local-path
           accessModes: [ReadWriteOnce]
           resources:
             requests:

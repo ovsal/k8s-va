@@ -19,7 +19,7 @@ deploymentMode: SingleBinary
 singleBinary:
   replicas: 1
   persistence:
-    storageClass: nfs-shared
+    storageClass: local-path
     size: 50Gi
 
 # SingleBinary mode: все scalable-компоненты в 0
