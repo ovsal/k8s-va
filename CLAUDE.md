@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-All Ansible commands must run from `cluster/` using the `.venv` Python environment:
+All Ansible commands must run from `cluster/` (uses `ansible.cfg` there for inventory, SSH key, etc.):
 
 ```bash
 # Always export kubeconfig before kubectl/helm commands
@@ -12,7 +12,7 @@ export KUBECONFIG=~/.kube/config-k8s-va
 
 # Stage 1 – prepare nodes
 make host-prep
-# equivalent: cd cluster && .venv/bin/ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
+# equivalent: cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
 
 # Stage 2 – bootstrap cluster (Kubespray, ~20–40 min)
 make bootstrap
@@ -32,13 +32,13 @@ make lint
 
 Ad-hoc Ansible:
 ```bash
-cd cluster && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m ping
-cd cluster && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m shell -a "systemctl is-active containerd"
+cd cluster && ansible -i inventory/prod/hosts.yaml all -m ping
+cd cluster && ansible -i inventory/prod/hosts.yaml all -m shell -a "systemctl is-active containerd"
 ```
 
 ## Environment / toolchain
 
-- **Ansible**: must use `.venv/bin/ansible-playbook` (ansible-core 2.17.14, installed via `pip install ansible==10.7.0`). The system/Homebrew ansible is a different incompatible version.
+- **Ansible**: system ansible via `brew install ansible` (ansible-core 2.17+ required; cluster runs fine with 2.18). Run from `cluster/` so `ansible.cfg` is picked up automatically.
 - **SSH key**: hardcoded in `cluster/ansible.cfg` → `ssh_args` → `-i /Users/ai_ovsyannikov/.ssh/id_rsa_ansible2`
 - **Kubespray**: git submodule at `cluster/kubespray/` (branch v2.30.0). Init with `git submodule update --init --recursive`.
 

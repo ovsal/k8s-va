@@ -26,8 +26,7 @@
 
 ### Инструменты на локальной машине (macOS)
 ```bash
-brew install helm kubectl vault
-pip3 install ansible==10.7.0   # ansible-core 2.17.x — требование Kubespray v2.30
+brew install helm kubectl vault ansible
 ```
 
 ---

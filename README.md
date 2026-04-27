@@ -14,7 +14,7 @@ docs/       — runbooks and architecture docs
 
 - SSH access from local machine to all nodes (key auth, `ansible` user, sudo NOPASSWD)
 - Python 3.10+, helm, kubectl installed locally
-- Ansible: `pip install ansible==10.7.0` (requires ansible-core 2.17.x for Kubespray v2.30)
+- Ansible: `brew install ansible` (ansible-core 2.17+ required; 2.18 works)
 - Kubespray submodule: `git submodule update --init --recursive`
 
 ## Quick start
