@@ -1,41 +1,52 @@
 ---
-- name: Post-bootstrap setup on local machine
-  hosts: localhost
-  connection: local
+- name: Fetch kubeconfig from first control-plane
+  hosts: "{{ groups['kube_control_plane'][0] }}"
   gather_facts: false
   vars:
     kubeconfig_dest: "{{ lookup('env','HOME') }}/.kube/config-k8s-va"
-    cp1_host: "{{ groups['kube_control_plane'][0] }}"
   tasks:
-    - name: Ensure .kube dir exists
+    - name: Read admin.conf
+      slurp:
+        src: /etc/kubernetes/admin.conf
+      become: true
+      register: kubeconfig_raw
+
+    - name: Ensure local .kube dir exists
       file:
         path: "{{ lookup('env','HOME') }}/.kube"
         state: directory
         mode: '0700'
+      delegate_to: localhost
+      become: false
 
-    - name: Fetch kubeconfig from first control-plane
-      fetch:
-        src: /etc/kubernetes/admin.conf
+    - name: Write kubeconfig locally
+      copy:
+        content: "{{ kubeconfig_raw.content | b64decode }}"
         dest: "{{ kubeconfig_dest }}"
-        flat: true
-      delegate_to: "{{ cp1_host }}"
-      become: true
+        mode: '0600'
+      delegate_to: localhost
+      become: false
 
     - name: Replace internal API server address with VIP in kubeconfig
       replace:
         path: "{{ kubeconfig_dest }}"
         regexp: 'server: https://.*:6443'
         replace: "server: https://{{ loadbalancer_apiserver.address }}:6443"
+      delegate_to: localhost
+      become: false
 
     - name: Set KUBECONFIG in shell profile
       lineinfile:
-        path: "{{ lookup('env','HOME') }}/.bashrc"
+        path: "{{ lookup('env','HOME') }}/.zshrc"
         line: "export KUBECONFIG={{ kubeconfig_dest }}"
         state: present
+      delegate_to: localhost
+      become: false
 
 - name: Smoke test cluster
   hosts: localhost
   connection: local
+  gather_facts: false
   environment:
     KUBECONFIG: "{{ lookup('env','HOME') }}/.kube/config-k8s-va"
   tasks:
@@ -57,7 +68,7 @@
 
     - name: Check etcd cluster health
       command: >
-        kubectl -n kube-system exec -it etcd-cp-1 -- etcdctl
+        kubectl -n kube-system exec etcd-cp-1 -- etcdctl
         --endpoints=https://127.0.0.1:2379
         --cacert=/etc/kubernetes/pki/etcd/ca.crt
         --cert=/etc/kubernetes/pki/etcd/peer.crt
