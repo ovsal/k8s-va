@@ -1,23 +1,42 @@
 ---
+# Значения по умолчанию для роли host-prep.
+# Переопределяются через group_vars, host_vars или vars в плейбуке.
+# Приоритет: defaults < group_vars < host_vars < vars в play.
+
+# Kernel-модули, которые нужно загрузить на каждой ноде.
+# overlay     — драйвер файловой системы для слоёв контейнерных образов (OverlayFS).
+# br_netfilter — позволяет iptables/nftables обрабатывать трафик через Linux bridge;
+#               без него сетевые политики Kubernetes не работают.
 kernel_modules:
   - overlay
   - br_netfilter
 
+# sysctl-параметры ядра, применяемые в /etc/sysctl.d/99-kubernetes.conf.
 sysctl_params:
-  net.ipv4.ip_forward: 1
-  net.bridge.bridge-nf-call-iptables: 1
-  net.bridge.bridge-nf-call-ip6tables: 1
-  fs.inotify.max_user_watches: 524288
-  fs.inotify.max_user_instances: 512
-  vm.overcommit_memory: 1
-  kernel.panic: 10
-  kernel.panic_on_oops: 1
+  net.ipv4.ip_forward: 1                # форвардинг пакетов между интерфейсами (pod→pod через разные ноды)
+  net.bridge.bridge-nf-call-iptables: 1 # iptables видит трафик через bridge (нужно Calico и kube-proxy)
+  net.bridge.bridge-nf-call-ip6tables: 1 # то же для IPv6
+  fs.inotify.max_user_watches: 524288   # kubelet смотрит за тысячами файлов; дефолт 8192 — слишком мало
+  fs.inotify.max_user_instances: 512    # количество inotify-инстансов на пользователя
+  vm.overcommit_memory: 1              # разрешить выделять больше RAM чем физически есть (нужно JVM, Go runtime)
+  kernel.panic: 10                     # автоперезагрузка через 10 секунд после kernel panic
+  kernel.panic_on_oops: 1             # kernel panic при oops (нестабильный узел лучше перезагрузить)
 
+# Версия containerd для установки из репозитория Docker.
+# Glob-паттерн: "2.2.*" означает «последний patch-релиз в серии 2.2».
 containerd_version: "2.2.*"
+
+# Директория для конфига containerd (стандартный путь).
 containerd_config_dir: /etc/containerd
 
+# Список NTP-серверов для chrony. Ubuntu Pool Project — глобально доступны.
+# При наличии внутреннего NTP-сервера заменить на него для точности и независимости.
 ntp_servers:
   - 0.ubuntu.pool.ntp.org
   - 1.ubuntu.pool.ntp.org
 
-corporate_ca_cert: ""   # заполнить PEM строкой или передать как extra-var
+# PEM-строка корпоративного CA сертификата.
+# Пустая строка "" — блок ca-trust.yml пропускается полностью.
+# Передаётся как extra-var или через group_vars если нужен:
+#   ansible-playbook ... -e "corporate_ca_cert=$(cat /path/to/ca.pem)"
+corporate_ca_cert: ""
