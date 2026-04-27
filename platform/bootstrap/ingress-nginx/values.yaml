@@ -4,6 +4,7 @@ controller:
     type: LoadBalancer
     annotations:
       metallb.universe.tf/address-pool: main-pool
+      metallb.universe.tf/loadBalancerIPs: 176.113.118.185
   ingressClassResource:
     name: nginx
     default: true

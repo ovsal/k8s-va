@@ -4,7 +4,7 @@
 
 **Goal:** Автоматизированный bootstrap production-ready HA Kubernetes-кластера (3 control-plane + N workers) с полным платформенным стеком для видеоархива.
 
-**Architecture:** Ansible + Kubespray создают vanilla k8s кластер на Ubuntu 22.04; MetalLB/ingress-nginx/cert-manager ставятся через Helm до Argo CD; дальше всё управляется GitOps через Argo CD App-of-Apps. Платформенные сервисы (Vault, Prometheus/Loki, Velero) — отдельные Argo CD Applications.
+**Architecture:** Ansible + Kubespray создают vanilla k8s кластер на Ubuntu 24.04; MetalLB/ingress-nginx/cert-manager ставятся через Helm до Argo CD; дальше всё управляется GitOps через Argo CD App-of-Apps. Платформенные сервисы (Vault, Prometheus/Loki, Velero) — отдельные Argo CD Applications.
 
 **Tech Stack:** Kubespray v2.26, Kubernetes v1.31, Calico, kube-vip, MetalLB v0.14, ingress-nginx v1.11, cert-manager v1.15, Argo CD v2.11, kube-prometheus-stack, Loki v6, Vault v1.17 (chart 0.28), External Secrets Operator v0.9, Velero v7, nfs-subdir-external-provisioner v4.
 
@@ -3093,7 +3093,7 @@ git push origin main
 ## Шаги
 
 ### 1. Подготовить новую VM
-VM должна соответствовать требованиям: Ubuntu 22.04, 8 vCPU, 16 GB RAM.
+VM должна соответствовать требованиям: Ubuntu 24.04, 8 vCPU, 16 GB RAM.
 Убедиться что SSH ключ bastion работает:
 ```
 ssh ubuntu@<NEW_NODE_IP>
@@ -3456,7 +3456,7 @@ git push origin main
 | Требование из spec                                   | Task |
 |------------------------------------------------------|------|
 | HA 3 control-plane + stacked etcd                    | T3, T4 |
-| Ubuntu 22.04                                         | T2, T3 |
+| Ubuntu 24.04                                         | T2, T3 |
 | Kubespray                                            | T1, T4 |
 | Calico CNI + NetworkPolicy                           | T3, T11 |
 | MetalLB L2                                           | T5 |

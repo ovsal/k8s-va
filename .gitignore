@@ -2,8 +2,12 @@
 .vault_pass
 *.pem
 *.key
+*.creds
 kubeconfig
 .env
 __pycache__/
 *.pyc
 .DS_Store
+.venv/
+.claude/
+ansible/inventory/prod/credentials/

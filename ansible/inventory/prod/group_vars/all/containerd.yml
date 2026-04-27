@@ -1,6 +1,3 @@
 ---
-containerd_registries_mirrors:
-  "registry.company.com":    # ЗАМЕНИТЬ на REGISTRY_URL
-    - "https://registry.company.com"
-# Если registry с self-signed cert:
+containerd_registries_mirrors: []
 containerd_insecure_registries: []

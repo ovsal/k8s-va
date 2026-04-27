@@ -9,7 +9,7 @@ metadata:
 spec:
   project: platform
   sources:
-    - repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+    - repoURL: https://github.com/ovsal/k8s-va.git
       targetRevision: main
       ref: values
     - repoURL: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
@@ -18,7 +18,7 @@ spec:
       helm:
         valueFiles:
           - $values/platform/apps/storage/values.yaml
-    - repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+    - repoURL: https://github.com/ovsal/k8s-va.git
       targetRevision: main
       path: platform/apps/storage
       directory:

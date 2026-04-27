@@ -17,7 +17,7 @@ sudo kubeadm certs renew all
 sudo systemctl restart kubelet
 ```
 
-## Обновить kubeconfig на bastion
+## Обновить kubeconfig на локальной машине
 ```bash
 cd ansible && ansible-playbook playbooks/20-post-bootstrap.yaml \
   --tags kubeconfig

@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/company/k8s-platform.git   # ЗАМЕНИТЬ
+    repoURL: https://github.com/ovsal/k8s-va.git   # ЗАМЕНИТЬ
     targetRevision: main
     path: platform/apps
   destination:

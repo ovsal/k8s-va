@@ -1,12 +1,12 @@
 global:
-  domain: argocd.k8s.company.com   # ЗАМЕНИТЬ
+  domain: argocd.k8s.va.atmodev.net
 
 server:
   ingress:
     enabled: true
     ingressClassName: nginx
     annotations:
-      cert-manager.io/cluster-issuer: internal-ca
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     tls: true

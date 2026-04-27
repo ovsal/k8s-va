@@ -12,7 +12,7 @@ host-prep: ## Prepare hosts (apt, sysctl, containerd, chrony)
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(INVENTORY) playbooks/00-host-prep.yaml
 
 bootstrap: ## Bootstrap k8s cluster via Kubespray
-	cd $(ANSIBLE_DIR) && ansible-playbook -i $(INVENTORY) playbooks/10-kubespray.yaml
+	cd $(ANSIBLE_DIR) && ansible-playbook -b -i $(INVENTORY) playbooks/10-kubespray.yaml
 
 post-bootstrap: ## Fetch kubeconfig, install CLI tools on bastion
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(INVENTORY) playbooks/20-post-bootstrap.yaml

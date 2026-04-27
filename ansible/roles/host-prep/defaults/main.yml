@@ -13,7 +13,7 @@ sysctl_params:
   kernel.panic: 10
   kernel.panic_on_oops: 1
 
-containerd_version: "1.7.*"
+containerd_version: "2.2.*"
 containerd_config_dir: /etc/containerd
 
 ntp_servers:

@@ -6,7 +6,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.200-192.168.1.220   # ЗАМЕНИТЬ на METALLB_POOL
+    - 176.113.118.185-176.113.118.189 # ЗАМЕНИТЬ на METALLB_POOL
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement

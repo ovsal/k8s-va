@@ -5,12 +5,12 @@ grafana:
     enabled: true
     ingressClassName: nginx
     annotations:
-      cert-manager.io/cluster-issuer: internal-ca
+      cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-      - grafana.k8s.company.com   # ЗАМЕНИТЬ
+      - grafana.k8s.va.atmodev.net
     tls:
       - secretName: grafana-tls
-        hosts: [grafana.k8s.company.com]
+        hosts: [grafana.k8s.va.atmodev.net]
   persistence:
     enabled: true
     storageClassName: nfs-shared
@@ -56,9 +56,9 @@ alertmanager:
 kubeEtcd:
   enabled: true
   endpoints:
-    - 192.168.1.10    # ЗАМЕНИТЬ — IP control-plane нод
-    - 192.168.1.11
-    - 192.168.1.12
+    - 176.113.118.177
+    - 176.113.118.178
+    - 176.113.118.179
 
 nodeExporter:
   enabled: true

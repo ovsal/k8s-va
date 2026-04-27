@@ -1,23 +1,20 @@
 all:
   hosts:
     cp-1:
-      ansible_host: 192.168.1.10      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
+      ansible_host: 176.113.118.177      # ЗАМЕНИТЬ
+      ansible_user: ansible
     cp-2:
-      ansible_host: 192.168.1.11      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
+      ansible_host: 176.113.118.178      # ЗАМЕНИТЬ
+      ansible_user: ansible
     cp-3:
-      ansible_host: 192.168.1.12      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
+      ansible_host: 176.113.118.179      # ЗАМЕНИТЬ
+      ansible_user: ansible
     worker-1:
-      ansible_host: 192.168.1.20      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
+      ansible_host: 176.113.118.180      # ЗАМЕНИТЬ
+      ansible_user: ansible
     worker-2:
-      ansible_host: 192.168.1.21      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
-    worker-3:
-      ansible_host: 192.168.1.22      # ЗАМЕНИТЬ
-      ansible_user: ubuntu
+      ansible_host: 176.113.118.181      # ЗАМЕНИТЬ
+      ansible_user: ansible
   children:
     kube_control_plane:
       hosts:
@@ -28,7 +25,6 @@ all:
       hosts:
         worker-1:
         worker-2:
-        worker-3:
     etcd:
       hosts:
         cp-1:

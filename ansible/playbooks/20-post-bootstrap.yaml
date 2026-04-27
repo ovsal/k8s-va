@@ -1,5 +1,5 @@
 ---
-- name: Post-bootstrap setup on bastion
+- name: Post-bootstrap setup on local machine
   hosts: localhost
   connection: local
   gather_facts: false
@@ -32,33 +32,6 @@
         path: "{{ lookup('env','HOME') }}/.bashrc"
         line: "export KUBECONFIG={{ kubeconfig_dest }}"
         state: present
-
-- name: Install CLI tools on bastion
-  hosts: localhost
-  connection: local
-  gather_facts: true
-  tasks:
-    - name: Install kubectl via snap
-      snap:
-        name: kubectl
-        classic: true
-        state: present
-      become: true
-
-    - name: Install helm
-      shell: |
-        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-      args:
-        creates: /usr/local/bin/helm
-
-    - name: Install vault CLI
-      shell: |
-        curl -fsSL https://releases.hashicorp.com/vault/1.17.0/vault_1.17.0_linux_amd64.zip -o /tmp/vault.zip
-        unzip -o /tmp/vault.zip -d /usr/local/bin/
-        chmod +x /usr/local/bin/vault
-      args:
-        creates: /usr/local/bin/vault
-      become: true
 
 - name: Smoke test cluster
   hosts: localhost

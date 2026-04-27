@@ -1,9 +1,8 @@
 ---
-calico_version: "v3.28.0"
 calico_cni_name: k8s-pod-network
 calico_datastore: kdd       # kubernetes datastore (без etcd)
 calico_network_backend: bird
-calico_ip_auto_method: "interface={{ node_iface }}"
+calico_ip_auto_method: "interface=eth0"
 calico_ipv4pool_ipip: "Off"
 calico_ipv4pool_vxlan: "Always"   # vxlan лучше работает без BGP
 nat_outgoing: true

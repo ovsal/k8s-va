@@ -26,7 +26,7 @@
 | Окружения              | **Один кластер**, dev/stage/prod через namespaces + RBAC + ResourceQuota |
 | Топология control-plane| **HA: 3 control-plane** + N worker (stacked etcd)                        |
 | Дистрибутив            | **Kubespray** (Ansible + kubeadm), vanilla k8s                           |
-| ОС нод                 | **Ubuntu 22.04 / 24.04 LTS**                                             |
+| ОС нод                 | **Ubuntu 24.04 LTS**                                                     |
 | CNI                    | **Calico** (с NetworkPolicy)                                             |
 | LoadBalancer           | **MetalLB** L2-режим                                                     |
 | Ingress                | **ingress-nginx**                                                         |
@@ -76,9 +76,8 @@ k8s-platform/
 
 - 3× control-plane VM: 4 vCPU / 8 GB / 80 GB SSD
 - N× worker VM: 8 vCPU / 16 GB / 100 GB (N уточним после profiling сервисов)
-- 1× bastion host
-- L2-сеть, пул IP ≥10 под MetalLB, DNS `*.k8s.<domain>` → VIP
-- SSH-ключ bastion → все ноды (sudo NOPASSWD)
+- L2-сеть, пул IP ≥10 под MetalLB, DNS `*.k8s.va.atmodev.net` → VIP
+- SSH-ключ с локальной машины оператора → все ноды (sudo NOPASSWD)
 - NTP/chrony на всех нодах (критично для etcd)
 
 ### Фаза 1. Bootstrap кластера (Kubespray)

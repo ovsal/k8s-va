@@ -4,8 +4,8 @@ Kubernetes bootstrap automation for the video archive platform.
 
 ## Prerequisites
 
-- Bastion host with SSH access to all nodes
-- Python 3.10+ on bastion
+- SSH access from local machine to all nodes (key auth, sudo NOPASSWD)
+- Python 3.10+, ansible, helm, kubectl installed locally
 - Kubespray submodule initialized: `git submodule update --init --recursive`
 
 ## Quick start

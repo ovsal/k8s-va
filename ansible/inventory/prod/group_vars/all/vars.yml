@@ -2,10 +2,22 @@
 # kube-vip: VIP для kube-apiserver (внешний адрес для kubectl)
 kube_vip_enabled: true
 kube_vip_arp_enabled: true
-kube_vip_interface: "{{ node_iface }}"   # enp3s0 / eth0 / ens3
-loadbalancer_apiserver_address: "192.168.1.100"   # ЗАМЕНИТЬ на API_VIP
+kube_vip_interface: "eth0"
+kube_vip_address: "176.113.118.190"
+kube_vip_controlplane_enabled: true
+
+# Внешний LB endpoint (kube-vip VIP) — сообщает kubespray использовать VIP в kubeconfig и SSL SANs
+loadbalancer_apiserver:
+  address: "176.113.118.190"
+  port: 6443
 
 # Используемый runtime
 container_manager: containerd
 
 # NTP — уже настроен host-prep ролью
+
+# Не переименовывать ноды — у них уже есть имена
+override_system_hostname: false
+
+# Kubespray устанавливает containerd 2.2.3 + runc + crictl + nerdctl
+deploy_container_engine: true
