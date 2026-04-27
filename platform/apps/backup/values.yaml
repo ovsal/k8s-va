@@ -37,4 +37,4 @@ resources:
 metrics:
   enabled: true
   serviceMonitor:
-    enabled: true
+    enabled: false   # включить после установки Prometheus
