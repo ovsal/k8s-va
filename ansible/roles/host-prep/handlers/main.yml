@@ -1,8 +1,15 @@
 ---
+# Handlers вызываются в конце play только если соответствующая задача сообщила об изменении.
+# Это позволяет избежать лишних перезапусков сервисов при повторном прогоне плейбука.
+
 - name: restart chrony
+  # Вызывается когда изменился /etc/chrony/chrony.conf.
+  # Chrony должен перечитать конфиг чтобы переключиться на новые NTP-серверы.
   systemd:
     name: chronyd
     state: restarted
 
 - name: update ca-certificates
+  # Вызывается когда добавлен новый CA в /usr/local/share/ca-certificates/.
+  # Перестраивает системный бандл /etc/ssl/certs/ca-certificates.crt.
   command: update-ca-certificates

@@ -1,5 +1,22 @@
 ---
-# Запускает Kubespray cluster.yml с нашим inventory
-# Kubespray предоставляет всё необходимое для bootstrap HA кластера.
+# Плейбук 2/4: Bootstrap кластера Kubernetes через Kubespray.
+#
+# Kubespray — это коллекция Ansible-ролей, которая автоматизирует kubeadm.
+# cluster.yml делает следующее в правильном порядке:
+#   1. Устанавливает etcd на cp-1, cp-2, cp-3 (stacked — etcd живёт прямо на CP нодах)
+#   2. Инициализирует первый control-plane через kubeadm init
+#   3. Присоединяет cp-2 и cp-3 как дополнительные control-plane (kubeadm join --control-plane)
+#   4. Устанавливает kube-vip: поднимает VIP .190 — единый IP для API-сервера
+#   5. Присоединяет worker-1 и worker-2 как обычные ноды (kubeadm join)
+#   6. Разворачивает Calico CNI: создаёт pod-сеть (VXLAN-туннели между нодами)
+#   7. Настраивает CoreDNS, kube-proxy (IPVS mode), metrics-server и др.
+#
+# Конфигурация берётся из:
+#   ansible/inventory/prod/group_vars/k8s_cluster/k8s-cluster.yml  (версия k8s, CNI, прокси)
+#   ansible/inventory/prod/group_vars/all/vars.yml                  (kube-vip, VIP-адрес)
+#   ansible/inventory/prod/group_vars/k8s_cluster/k8s-net-calico.yml (настройки Calico)
+#
+# Время выполнения: ~20–40 минут (зависит от скорости скачивания образов).
+
 - name: Bootstrap Kubernetes cluster via Kubespray
   ansible.builtin.import_playbook: ../kubespray/cluster.yml

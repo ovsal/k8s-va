@@ -1,45 +1,77 @@
 ---
+# Установка и настройка containerd — container runtime для Kubernetes.
+#
+# Kubernetes с версии 1.24 не поддерживает Docker напрямую.
+# containerd — низкоуровневый runtime: он скачивает образы, создаёт namespace-ы,
+# запускает runc (реальный процесс контейнера). kubelet общается с containerd через CRI.
+
+# --- Добавление репозитория ---
+
 - name: Add Docker/containerd GPG key
+  # Docker Inc. публикует containerd в своём репозитории.
+  # GPG-ключ нужен apt чтобы верифицировать подпись пакетов из этого репо.
   apt_key:
     url: https://download.docker.com/linux/ubuntu/gpg
     state: present
 
 - name: Add containerd repo
+  # Добавляем репозиторий Docker для нужного дистрибутива Ubuntu.
+  # ansible_distribution_release — например "noble" для Ubuntu 24.04.
+  # filename: docker — запишет в /etc/apt/sources.list.d/docker.list
   apt_repository:
     repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
     filename: docker
 
+# --- Установка ---
+
 - name: Install containerd
+  # Устанавливаем конкретную версию (из defaults/main.yml: "2.2.*")
+  # чтобы не получить неожиданное обновление через apt upgrade.
   apt:
     name: "containerd.io={{ containerd_version }}"
     state: present
     update_cache: true
 
+# --- Настройка ---
+
 - name: Ensure containerd config dir exists
+  # /etc/containerd/ — стандартная директория для конфигурации.
   file:
     path: "{{ containerd_config_dir }}"
     state: directory
     mode: '0755'
 
 - name: Generate default containerd config
+  # containerd config default генерирует полный конфиг со всеми дефолтами.
+  # Нам нужен именно полный конфиг — дальше мы патчим два поля в нём.
+  # creates: — идемпотентность: не перегенерировать если файл уже есть.
   shell: containerd config default > {{ containerd_config_dir }}/config.toml
   args:
     creates: "{{ containerd_config_dir }}/config.toml"
 
 - name: Enable SystemdCgroup in containerd
+  # Критически важный параметр: Kubernetes использует systemd для управления cgroup.
+  # Если containerd использует cgroupfs (дефолт), а kubelet — systemd, возникает
+  # конфликт: две системы пытаются управлять ресурсами контейнера одновременно.
+  # Результат — нестабильная работа, проблемы с eviction, OOM.
   replace:
     path: "{{ containerd_config_dir }}/config.toml"
     regexp: 'SystemdCgroup = false'
     replace: 'SystemdCgroup = true'
 
 - name: Set sandbox image to registry.k8s.io
+  # pause-контейнер ("sandbox") создаётся для каждого пода — он держит
+  # network namespace пока остальные контейнеры пода перезапускаются.
+  # Дефолтный образ может указывать на устаревший тег; фиксируем pause:3.9.
   replace:
     path: "{{ containerd_config_dir }}/config.toml"
     regexp: 'sandbox_image = "registry.k8s.io/pause:.*"'
     replace: 'sandbox_image = "registry.k8s.io/pause:3.9"'
 
 - name: Enable and restart containerd
+  # daemon_reload: true — перечитываем systemd unit-файлы (на случай обновления пакета).
+  # state: restarted — применяем новый config.toml; containerd читает конфиг при старте.
   systemd:
     name: containerd
     enabled: true

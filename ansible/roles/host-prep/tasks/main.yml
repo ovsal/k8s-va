@@ -1,4 +1,10 @@
 ---
+# Точка входа роли host-prep.
+# Задачи разбиты на три файла по смыслу:
+#   system.yml    — ОС: swap, sysctl, kernel-модули, пакеты, chrony (NTP)
+#   containerd.yml — container runtime: установка и настройка containerd
+#   ca-trust.yml  — доверие корпоративному CA (опционально)
+
 - import_tasks: system.yml
 - import_tasks: containerd.yml
 - import_tasks: ca-trust.yml

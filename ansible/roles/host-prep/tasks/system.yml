@@ -1,27 +1,56 @@
 ---
+# Системная подготовка ноды: swap, kernel, sysctl, пакеты, NTP.
+
+# --- Swap ---
+
 - name: Disable swap immediately
+  # Kubernetes отказывается стартовать при включённом swap.
+  # swapoff -a выключает все swap-разделы прямо сейчас, без перезагрузки.
+  # changed_when: false — команда идемпотентна, не нужно считать её "изменением".
   command: swapoff -a
   changed_when: false
 
 - name: Remove swap from fstab
+  # После перезагрузки swap включится снова, если запись есть в /etc/fstab.
+  # Regexp закомментирует любую строку со словом swap (swap-раздел, swap-файл).
   replace:
     path: /etc/fstab
     regexp: '^([^#].*\s+swap\s+.*)$'
     replace: '# \1'
 
+# --- Kernel modules ---
+
 - name: Load kernel modules now
+  # overlay — нужен для overlayfs: слои файловой системы контейнеров.
+  # br_netfilter — нужен чтобы iptables/nftables видели трафик через bridge
+  #                (иначе межпод-трафик не проходит через сетевые политики).
+  # loop по списку из defaults/main.yml: [overlay, br_netfilter]
   modprobe:
     name: "{{ item }}"
     state: present
   loop: "{{ kernel_modules }}"
 
 - name: Persist kernel modules
+  # modprobe загружает модуль только до перезагрузки.
+  # /etc/modules-load.d/ — systemd-modules-load загружает их при буте автоматически.
   copy:
     dest: /etc/modules-load.d/k8s.conf
     content: "{{ kernel_modules | join('\n') }}\n"
     mode: '0644'
 
+# --- sysctl ---
+
 - name: Set sysctl params
+  # Выставляем параметры ядра нужные Kubernetes и Calico.
+  # Все параметры из defaults/main.yml:
+  #   net.ipv4.ip_forward=1          — форвардинг между интерфейсами (pod→pod через разные ноды)
+  #   net.bridge.bridge-nf-call-*=1  — iptables видит трафик через Linux bridge (нужно для Calico)
+  #   fs.inotify.*                   — лимиты на файловые watch-и (kubelet смотрит много файлов)
+  #   vm.overcommit_memory=1         — позволяет запрашивать больше RAM чем есть (нужно для некоторых подов)
+  #   kernel.panic=10                — автоперезагрузка через 10 сек после kernel panic
+  #
+  # sysctl_file — пишем в /etc/sysctl.d/99-kubernetes.conf, а не в sysctl.conf,
+  # чтобы изменения были атрибутированы нашему конфигу.
   sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
@@ -29,7 +58,17 @@
     reload: true
   loop: "{{ sysctl_params | dict2items }}"
 
+# --- Базовые пакеты ---
+
 - name: Install base packages
+  # Пакеты нужные для дальнейших шагов:
+  #   apt-transport-https, ca-certificates, gnupg — для добавления внешних apt-репозиториев
+  #   curl — общий инструмент для скачивания
+  #   lsb-release — нужен чтобы узнать кодовое имя дистрибутива (jammy/noble) при добавлении репо
+  #   python3-pip — может понадобиться ansible-модулям
+  #   rsync — Kubespray использует для синхронизации файлов
+  #   nfs-common — клиент NFS (нужен если будут NFS PersistentVolumes)
+  #   open-iscsi — клиент iSCSI (нужен Longhorn и некоторым CSI-драйверам)
   apt:
     name:
       - apt-transport-https
@@ -42,14 +81,22 @@
       - nfs-common
       - open-iscsi
     state: present
-    update_cache: true
+    update_cache: true   # аналог apt-get update перед установкой
+
+# --- NTP / синхронизация времени ---
 
 - name: Install chrony
+  # chrony — современный NTP-клиент, рекомендован на Ubuntu 24.04.
+  # Критично для Kubernetes: etcd требует синхронизации времени между нодами
+  # (расхождение >2-5 сек может привести к split-brain или отказу leader election).
   apt:
     name: chrony
     state: present
 
 - name: Configure chrony
+  # Подставляем список NTP-серверов из defaults/main.yml в конфиг chrony.
+  # Шаблон находится в roles/host-prep/templates/chrony.conf.j2.
+  # notify: при изменении конфига сработает handler "restart chrony".
   template:
     src: chrony.conf.j2
     dest: /etc/chrony/chrony.conf
@@ -57,6 +104,8 @@
   notify: restart chrony
 
 - name: Enable and start chrony
+  # Включаем автозапуск и стартуем сервис если он ещё не запущен.
+  # После этого chrony начинает синхронизировать время с NTP-серверами.
   systemd:
     name: chronyd
     enabled: true

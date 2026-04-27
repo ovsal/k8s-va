@@ -1,26 +1,45 @@
 ---
+# Плейбук 1/4: Подготовка всех нод к установке Kubernetes.
+# Запускается ДО kubespray. Без этого шага kubespray может упасть
+# из-за включённого swap или отсутствующих kernel-модулей.
+#
+# Что делает: вызывает роль host-prep (tasks/system.yml, containerd.yml, ca-trust.yml),
+# затем верифицирует результат через post_tasks.
+
 - name: Prepare all hosts for Kubernetes
-  hosts: all
-  become: true
-  gather_facts: true
+  hosts: all          # применяется ко всем 5 нодам (cp-1/2/3, worker-1/2)
+  become: true        # все задачи выполняются через sudo
+  gather_facts: true  # собирает ansible_default_ipv4.interface и др. — нужны в роли
   roles:
     - role: host-prep
       vars:
+        # передаём имя сетевого интерфейса из факта ноды (eth0, ens3 и т.д.)
         node_iface: "{{ ansible_default_ipv4.interface }}"
+
   post_tasks:
+    # --- Проверки после применения роли ---
+    # Эти задачи выполняются в конце и завершают плейбук с ошибкой,
+    # если нода не готова. Лучше упасть здесь, чем непонятно в kubespray.
+
     - name: Verify swap is off
+      # swapon --show возвращает пустой stdout если swap полностью выключен.
+      # Kubernetes требует отключённого swap: kubelet откажется стартовать.
       command: swapon --show
       register: swap_check
       changed_when: false
       failed_when: swap_check.stdout != ""
 
     - name: Verify ip_forward
+      # Пакеты между подами идут через kernel-forwarding.
+      # Если ip_forward=0 — pod-to-pod трафик не пройдёт.
       command: sysctl -n net.ipv4.ip_forward
       register: ipfwd
       changed_when: false
       failed_when: ipfwd.stdout | trim != "1"
 
     - name: Verify containerd running
+      # containerd — container runtime для Kubernetes (вместо Docker).
+      # Kubespray ожидает, что runtime уже запущен на момент установки.
       systemd:
         name: containerd
       register: ctr

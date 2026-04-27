@@ -1,4 +1,16 @@
 ---
+# Плейбук 4/4: ДЕСТРУКТИВНЫЙ сброс кластера.
+#
+# Удаляет Kubernetes со всех нод: останавливает kubelet, etcd, удаляет
+# сертификаты, очищает iptables/ipvs, удаляет CNI-конфиги и данные.
+# После выполнения ноды возвращаются в состояние "чистая Ubuntu".
+#
+# ВНИМАНИЕ: все PVC, поды и данные кластера будут уничтожены.
+# Makefile намеренно добавляет sleep 5 перед вызовом — время на Ctrl+C.
+#
+# reset_confirmation: "yes" — обязательный параметр Kubespray,
+# без него reset.yml откажется выполняться.
+
 - name: DESTRUCTIVE — Reset Kubernetes cluster
   ansible.builtin.import_playbook: ../kubespray/reset.yml
   vars:

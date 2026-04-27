@@ -1,12 +1,26 @@
 ---
+# Добавление корпоративного CA в доверенные сертификаты ОС.
+#
+# Нужно если:
+#   - container registry доступен по HTTPS с сертификатом от внутреннего CA
+#   - внутренние API используют самоподписанные сертификаты
+#
+# Если corporate_ca_cert не задан (пустая строка) — блок пропускается.
+
 - name: Add corporate CA to trusted store
+  # Записываем PEM-сертификат в /usr/local/share/ca-certificates/.
+  # Ubuntu подхватывает все .crt файлы из этой директории при вызове update-ca-certificates.
+  # Переменная corporate_ca_cert задаётся в group_vars или передаётся как extra-var.
   copy:
     content: "{{ corporate_ca_cert }}"
     dest: /usr/local/share/ca-certificates/corporate-ca.crt
     mode: '0644'
-  when: corporate_ca_cert != ""
-  notify: update ca-certificates
+  when: corporate_ca_cert != ""   # пропускаем если CA не задан
+  notify: update ca-certificates  # handler вызовет update-ca-certificates
 
 - name: Ensure CA store is up to date
+  # update-ca-certificates перестраивает /etc/ssl/certs/ca-certificates.crt —
+  # единый бандл из всех доверенных CA. Именно его используют curl, wget, python и др.
+  # changed_when: false — команда всегда завершается успешно, не нужно помечать как "изменение".
   command: update-ca-certificates
   changed_when: false

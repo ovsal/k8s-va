@@ -1,25 +1,41 @@
 ---
+# Плейбук 3/4: Действия после bootstrap кластера.
+# Запускается один раз сразу после 10-kubespray.yaml.
+#
+# Проблема: kubeconfig лежит на cp-1 в /etc/kubernetes/admin.conf (root:root, 0600).
+# Нам нужен файл локально на Mac — чтобы kubectl/helm работали без SSH.
+# Дополнительно: адрес в kubeconfig указывает на cp-1 напрямую; нужно заменить
+# его на kube-vip VIP (.190), чтобы kubectl продолжал работать при отказе cp-1.
+
 - name: Fetch kubeconfig from first control-plane
+  # Запускается только на первом CP (cp-1). Именно там kubeadm init создал admin.conf.
   hosts: "{{ groups['kube_control_plane'][0] }}"
-  gather_facts: false
+  gather_facts: false  # факты не нужны — используем только переменные inventory
   vars:
     kubeconfig_dest: "{{ lookup('env','HOME') }}/.kube/config-k8s-va"
   tasks:
+
     - name: Read admin.conf
+      # slurp читает файл на удалённой ноде и возвращает содержимое как base64.
+      # become: true нужен — файл принадлежит root.
       slurp:
         src: /etc/kubernetes/admin.conf
       become: true
       register: kubeconfig_raw
 
     - name: Ensure local .kube dir exists
+      # Создаём ~/.kube/ на локальной машине (Mac) с правами 700 —
+      # kubectl требует, чтобы директория не была доступна другим пользователям.
       file:
         path: "{{ lookup('env','HOME') }}/.kube"
         state: directory
         mode: '0700'
-      delegate_to: localhost
+      delegate_to: localhost   # эта задача выполняется на Mac, а не на cp-1
       become: false
 
     - name: Write kubeconfig locally
+      # Декодируем base64 из slurp и записываем в файл.
+      # mode 0600 — kubectl ругается если kubeconfig доступен group/other.
       copy:
         content: "{{ kubeconfig_raw.content | b64decode }}"
         dest: "{{ kubeconfig_dest }}"
@@ -28,6 +44,9 @@
       become: false
 
     - name: Replace internal API server address with VIP in kubeconfig
+      # В admin.conf прописан адрес cp-1 (127.0.0.1 или его IP).
+      # Заменяем на kube-vip VIP (.190) — через него API-сервер доступен
+      # даже если cp-1 упал, kube-vip поднимет VIP на cp-2 или cp-3.
       replace:
         path: "{{ kubeconfig_dest }}"
         regexp: 'server: https://.*:6443'
@@ -36,6 +55,8 @@
       become: false
 
     - name: Set KUBECONFIG in shell profile
+      # Добавляем export KUBECONFIG=... в ~/.zshrc, чтобы не писать
+      # --kubeconfig в каждой команде kubectl.
       lineinfile:
         path: "{{ lookup('env','HOME') }}/.zshrc"
         line: "export KUBECONFIG={{ kubeconfig_dest }}"
@@ -43,23 +64,30 @@
       delegate_to: localhost
       become: false
 
+# Отдельный play для smoke-test: выполняется локально через kubectl.
+# Использует только что скачанный kubeconfig.
 - name: Smoke test cluster
   hosts: localhost
-  connection: local
+  connection: local   # не SSH, выполняем kubectl прямо на Mac
   gather_facts: false
   environment:
     KUBECONFIG: "{{ lookup('env','HOME') }}/.kube/config-k8s-va"
   tasks:
+
     - name: Get nodes
+      # Запрашиваем список нод — проверяем, что kubectl может достучаться до API.
       command: kubectl get nodes -o wide
       register: nodes_out
       changed_when: false
 
     - name: Print nodes
+      # Выводим список нод в лог — удобно видеть IP и статус прямо в ansible output.
       debug:
         var: nodes_out.stdout_lines
 
     - name: Verify all nodes Ready
+      # jsonpath возвращает тип последнего condition для каждой ноды.
+      # Если хоть одна нода NotReady — плейбук завершается с ошибкой.
       command: >
         kubectl get nodes -o jsonpath='{.items[*].status.conditions[-1].type}'
       register: node_status
@@ -67,6 +95,8 @@
       failed_when: "'NotReady' in node_status.stdout"
 
     - name: Check etcd cluster health
+      # Проверяем, что все 3 члена etcd-кластера живы и синхронизированы.
+      # ignore_errors: true — не фатально если etcd-pod ещё не полностью стартовал.
       command: >
         kubectl -n kube-system exec etcd-cp-1 -- etcdctl
         --endpoints=https://127.0.0.1:2379
