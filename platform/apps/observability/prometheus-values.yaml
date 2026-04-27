@@ -12,9 +12,7 @@ grafana:
       - secretName: grafana-tls
         hosts: [grafana.k8s.va.atmodev.net]
   persistence:
-    enabled: true
-    storageClassName: local-path
-    size: 10Gi
+    enabled: false   # дашборды в ConfigMaps через sidecar, PVC не нужен
   defaultDashboardsEnabled: true
   sidecar:
     dashboards:
