@@ -25,7 +25,7 @@
       replace:
         path: "{{ kubeconfig_dest }}"
         regexp: 'server: https://.*:6443'
-        replace: "server: https://{{ loadbalancer_apiserver_address }}:6443"
+        replace: "server: https://{{ loadbalancer_apiserver.address }}:6443"
 
     - name: Set KUBECONFIG in shell profile
       lineinfile:
