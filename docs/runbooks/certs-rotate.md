@@ -7,26 +7,30 @@ kubeadm-сертификаты истекают через 1 год. cert-manage
 ## Проверить срок действия сертификатов
 ```bash
 # На каждой control-plane ноде:
-ssh ubuntu@<CP_NODE> sudo kubeadm certs check-expiration
+ssh ansible@<CP_NODE> sudo kubeadm certs check-expiration
 ```
 
 ## Ротация (выполнить на КАЖДОЙ control-plane ноде по очереди)
 ```bash
-ssh ubuntu@<CP_NODE>
+ssh ansible@<CP_NODE>
 sudo kubeadm certs renew all
 sudo systemctl restart kubelet
 ```
 
 ## Обновить kubeconfig на локальной машине
 ```bash
-cd ansible && ansible-playbook playbooks/20-post-bootstrap.yaml \
-  --tags kubeconfig
-# Или вручную:
-ssh ubuntu@<CP1_NODE> sudo cat /etc/kubernetes/admin.conf > ~/.kube/config-k8s-va
+# Перезапустить post-bootstrap плейбук — он заново скачает admin.conf и заменит адрес на VIP
+cd cluster && ansible-playbook playbooks/20-post-bootstrap.yaml
+
+# Или вручную (если плейбук недоступен):
+ssh ansible@<CP1_NODE> sudo cat /etc/kubernetes/admin.conf > ~/.kube/config-k8s-va
+# Не забыть заменить адрес на kube-vip VIP:
+sed -i '' 's|server: https://.*:6443|server: https://<API_VIP>:6443|' ~/.kube/config-k8s-va
 ```
 
 ## Проверить
 ```bash
 kubectl get nodes  # должно работать без ошибок TLS
-kubeadm certs check-expiration  # все сертификаты обновлены
+ssh ansible@<CP_NODE> sudo kubeadm certs check-expiration
+# Все сертификаты должны иметь новый срок действия
 ```

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-All Ansible commands must run from `ansible/` using the `.venv` Python environment:
+All Ansible commands must run from `cluster/` using the `.venv` Python environment:
 
 ```bash
 # Always export kubeconfig before kubectl/helm commands
@@ -12,7 +12,7 @@ export KUBECONFIG=~/.kube/config-k8s-va
 
 # Stage 1 – prepare nodes
 make host-prep
-# equivalent: cd ansible && .venv/bin/ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
+# equivalent: cd cluster && .venv/bin/ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
 
 # Stage 2 – bootstrap cluster (Kubespray, ~20–40 min)
 make bootstrap
@@ -32,15 +32,15 @@ make lint
 
 Ad-hoc Ansible:
 ```bash
-cd ansible && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m ping
-cd ansible && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m shell -a "systemctl is-active containerd"
+cd cluster && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m ping
+cd cluster && .venv/bin/ansible -i inventory/prod/hosts.yaml all -m shell -a "systemctl is-active containerd"
 ```
 
 ## Environment / toolchain
 
 - **Ansible**: must use `.venv/bin/ansible-playbook` (ansible-core 2.17.14, installed via `pip install ansible==10.7.0`). The system/Homebrew ansible is a different incompatible version.
-- **SSH key**: hardcoded in `ansible/ansible.cfg` → `ssh_args` → `-i /Users/ai_ovsyannikov/.ssh/id_rsa_ansible2`
-- **Kubespray**: git submodule at `ansible/kubespray/` (branch v2.30.0). Init with `git submodule update --init --recursive`.
+- **SSH key**: hardcoded in `cluster/ansible.cfg` → `ssh_args` → `-i /Users/ai_ovsyannikov/.ssh/id_rsa_ansible2`
+- **Kubespray**: git submodule at `cluster/kubespray/` (branch v2.30.0). Init with `git submodule update --init --recursive`.
 
 ## Architecture overview
 
@@ -105,7 +105,7 @@ kubectl exec -n vault vault-0 -- vault operator init \
 # Save vault-init.json outside the repo
 
 for pod in vault-0 vault-1 vault-2; do
-  for i in 1 2 3; do
+  for i in 0 1 2; do
     key=$(jq -r ".unseal_keys_b64[$i]" vault-init.json)
     kubectl exec -n vault $pod -- vault operator unseal $key
   done
@@ -120,10 +120,10 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 
 | File | Purpose |
 |---|---|
-| `ansible/inventory/prod/hosts.yaml` | Node IPs and groups |
-| `ansible/inventory/prod/group_vars/all/vars.yml` | kube-vip VIP, container runtime |
-| `ansible/inventory/prod/group_vars/k8s_cluster/k8s-cluster.yml` | K8s version, CNI, proxy mode |
-| `ansible/inventory/prod/group_vars/k8s_cluster/k8s-net-calico.yml` | Calico VXLAN, interface binding |
+| `cluster/inventory/prod/hosts.yaml` | Node IPs and groups |
+| `cluster/inventory/prod/group_vars/all/vars.yml` | kube-vip VIP, container runtime |
+| `cluster/inventory/prod/group_vars/k8s_cluster/k8s-cluster.yml` | K8s version, CNI, proxy mode |
+| `cluster/inventory/prod/group_vars/k8s_cluster/k8s-net-calico.yml` | Calico VXLAN, interface binding |
 | `platform/bootstrap/metallb/resources.yaml` | MetalLB IP pool |
 | `platform/bootstrap/cert-manager/cluster-issuers.yaml` | Let's Encrypt email |
 | `platform/bootstrap/argocd/root-app.yaml` | Git repo URL for ArgoCD |
@@ -135,4 +135,4 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **post-bootstrap playbook**: Uses `slurp` on cp-1 + `delegate_to: localhost` with `become: false` — do not add `connection: local` at play level, it breaks the become/delegate combination.
 - **ArgoCD AppProject sourceRepos**: Every Helm chart repo used in child Applications must be listed in `platform/argocd-apps/_root.yaml` under `sourceRepos`.
 - **Loki SingleBinary**: When `deploymentMode: SingleBinary`, must set `read.replicas: 0`, `write.replicas: 0`, `backend.replicas: 0` or chart validation fails.
-- **Credentials**: `ansible/inventory/prod/credentials/` is gitignored. Vault init JSON must never be committed.
+- **Credentials**: `cluster/inventory/prod/credentials/` is gitignored. Vault init JSON must never be committed.

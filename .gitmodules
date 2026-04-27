@@ -1,4 +1,4 @@
-[submodule "ansible/kubespray"]
-	path = ansible/kubespray
+[submodule "cluster/kubespray"]
+	path = cluster/kubespray
 	url = https://github.com/kubernetes-sigs/kubespray.git
 	branch = v2.30.0
