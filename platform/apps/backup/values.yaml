@@ -38,3 +38,9 @@ metrics:
   enabled: true
   serviceMonitor:
     enabled: false   # включить после установки Prometheus
+
+# bitnami/kubectl:1.34 не существует, используем 1.33
+kubectl:
+  image:
+    repository: docker.io/bitnami/kubectl
+    tag: "1.33"

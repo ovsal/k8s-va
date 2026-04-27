@@ -30,6 +30,12 @@ write:
 backend:
   replicas: 0
 
+# В SingleBinary с filesystem storage кеш не нужен
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
 # Grafana datasource будет добавлен через sidecar в kube-prometheus-stack
 gateway:
   enabled: false
