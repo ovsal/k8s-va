@@ -39,8 +39,5 @@ metrics:
   serviceMonitor:
     enabled: false   # включить после установки Prometheus
 
-# bitnami/kubectl:1.34 не существует, используем 1.33
-kubectl:
-  image:
-    repository: docker.io/bitnami/kubectl
-    tag: "1.33"
+# Отключить pre-install hook для CRD upgrade — ArgoCD сам применяет CRDs
+upgradeCRDs: false
