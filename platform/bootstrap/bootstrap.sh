@@ -19,11 +19,15 @@ helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 
 echo "==> [1/4] Installing MetalLB ${METALLB_VERSION}"
-helm upgrade --install metallb metallb/metallb \
-  --namespace metallb-system --create-namespace \
-  --version "${METALLB_VERSION}" \
-  --values "${SCRIPT_DIR}/metallb/values.yaml" \
-  --wait --timeout 5m
+if helm status metallb -n metallb-system &>/dev/null; then
+  echo "    MetalLB already installed, skipping upgrade"
+else
+  helm upgrade --install metallb metallb/metallb \
+    --namespace metallb-system --create-namespace \
+    --version "${METALLB_VERSION}" \
+    --values "${SCRIPT_DIR}/metallb/values.yaml" \
+    --wait --timeout 5m
+fi
 
 echo "==> Applying MetalLB IP pools"
 kubectl apply -f "${SCRIPT_DIR}/metallb/resources.yaml"

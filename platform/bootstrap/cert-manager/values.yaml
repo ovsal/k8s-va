@@ -5,4 +5,4 @@ global:
 prometheus:
   enabled: true
   servicemonitor:
-    enabled: true
+    enabled: false   # Prometheus CRDs ставятся позже через ArgoCD
