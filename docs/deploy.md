@@ -27,12 +27,17 @@
 ### Инструменты на локальной машине (macOS)
 ```bash
 brew install helm kubectl vault ansible
+```
 
-# Отдельный venv для Kubespray — ansible-core 2.17.x обязателен для шага 2
-# (Kubespray v2.30 жёстко блокирует версии 2.18+)
+Kubespray v2.30 жёстко проверяет версию ansible-core (`2.17.3 ≤ x < 2.18.0`) и отказывает при 2.18+.
+Создать отдельный venv один раз:
+```bash
 cd cluster
 python3 -m venv .venv
-.venv/bin/pip install ansible==10.7.0 jmespath netaddr cryptography
+.venv/bin/pip install --quiet ansible==10.7.0 jmespath netaddr cryptography
+# Проверка:
+.venv/bin/ansible-playbook --version | head -1
+# ansible-playbook [core 2.17.x]
 ```
 
 ---
@@ -127,10 +132,11 @@ cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-pr
 
 **Проверка:**
 ```bash
-ansible all -i cluster/inventory/prod/hosts.yaml -m shell -a "systemctl is-active containerd"
+cd cluster
+ansible all -i inventory/prod/hosts.yaml -m shell -a "systemctl is-active containerd"
 # Ожидается: active на всех нодах
 
-ansible all -i cluster/inventory/prod/hosts.yaml -m shell -a "chronyc tracking | grep 'Leap status'"
+ansible all -i inventory/prod/hosts.yaml -m shell -a "chronyc tracking | grep 'Leap status'"
 # Ожидается: Normal
 ```
 
@@ -140,16 +146,15 @@ ansible all -i cluster/inventory/prod/hosts.yaml -m shell -a "chronyc tracking |
 
 Kubespray запускает kubeadm на всех нодах, поднимает etcd (stacked), настраивает Calico CNI.
 
-> **Требование к версии ansible**: Kubespray v2.30 проверяет `2.17.3 ≤ ansible-core < 2.18.0` и завершается с ошибкой при других версиях. Необходимо активировать venv перед запуском.
+> **Требование к версии ansible**: Kubespray v2.30 проверяет `2.17.3 ≤ ansible-core < 2.18.0` и завершается с ошибкой при других версиях. Необходимо использовать venv.
+
+> **Ubuntu 24.04**: `unattended-upgrades` стартует сразу после загрузки VM и может заблокировать apt во время bootstrap. Kubespray отключит его автоматически — `ubuntu_stop_unattended_upgrades: true` уже задан в inventory.
+
+Запускать **из директории `cluster/`** (чтобы подхватился `ansible.cfg`):
 
 ```bash
-source cluster/.venv/bin/activate
-make bootstrap
-```
-
-**Или напрямую:**
-```bash
-cd cluster && .venv/bin/ansible-playbook -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
+cd cluster
+.venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
 ```
 
 > Время выполнения: ~20–40 минут в зависимости от скорости сети (скачивание образов).
@@ -325,8 +330,15 @@ kubectl -n vault exec vault-0 -- vault status | grep Sealed
 ```bash
 export KUBECONFIG=~/.kube/config-k8s-va
 
-# 1–3. Инфраструктура + кластер
-make host-prep && make bootstrap && make post-bootstrap
+# 1. Подготовка нод
+make host-prep
+
+# 2. Bootstrap кластера (venv обязателен — Kubespray требует ansible-core 2.17.x)
+cd cluster && .venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
+cd ..
+
+# 3. Получить kubeconfig
+make post-bootstrap
 
 # 4. Платформа до Argo CD
 make bootstrap-platform
