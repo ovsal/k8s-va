@@ -12,9 +12,9 @@
 #   7. Настраивает CoreDNS, kube-proxy (IPVS mode), metrics-server и др.
 #
 # Конфигурация берётся из:
-#   ansible/inventory/prod/group_vars/k8s_cluster/k8s-cluster.yml  (версия k8s, CNI, прокси)
-#   ansible/inventory/prod/group_vars/all/vars.yml                  (kube-vip, VIP-адрес)
-#   ansible/inventory/prod/group_vars/k8s_cluster/k8s-net-calico.yml (настройки Calico)
+#   cluster/inventory/prod/group_vars/k8s_cluster/k8s-cluster.yml  (версия k8s, CNI, прокси)
+#   cluster/inventory/prod/group_vars/all/vars.yml                  (kube-vip, VIP-адрес)
+#   cluster/inventory/prod/group_vars/k8s_cluster/k8s-net-calico.yml (настройки Calico)
 #
 # Время выполнения: ~20–40 минут (зависит от скорости скачивания образов).
 
