@@ -1,4 +1,5 @@
-INVENTORY       ?= cluster/inventory/prod/hosts.yaml
+# INVENTORY is relative to CLUSTER_DIR — all targets cd into it before running ansible
+INVENTORY       ?= inventory/prod/hosts.yaml
 CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
@@ -11,8 +12,8 @@ help: ## Show this help
 host-prep: ## Prepare hosts (apt, sysctl, containerd, chrony)
 	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/00-host-prep.yaml
 
-bootstrap: ## Bootstrap k8s cluster via Kubespray
-	cd $(CLUSTER_DIR) && ansible-playbook -b -i $(INVENTORY) playbooks/10-kubespray.yaml
+bootstrap: ## Bootstrap k8s cluster via Kubespray (requires cluster/.venv with ansible-core 2.17.x)
+	cd $(CLUSTER_DIR) && .venv/bin/ansible-playbook -b -i $(INVENTORY) playbooks/10-kubespray.yaml
 
 post-bootstrap: ## Fetch kubeconfig, install CLI tools on bastion
 	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/20-post-bootstrap.yaml

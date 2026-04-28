@@ -22,7 +22,7 @@ docs/       — runbooks and architecture docs
 
 1. Fill in real values in `cluster/inventory/prod/group_vars/all/vars.yml`
 2. `make host-prep`        — prepare nodes
-3. Bootstrap (venv required): `cd cluster && .venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml`
+3. `make bootstrap`        — bootstrap k8s cluster (~20–40 min, uses `cluster/.venv`)
 4. `make post-bootstrap`   — fetch kubeconfig to `~/.kube/config-k8s-va`
 5. `make bootstrap-platform` — install MetalLB, ingress, cert-manager, Argo CD
 

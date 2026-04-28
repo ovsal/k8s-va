@@ -15,9 +15,8 @@ make host-prep
 # equivalent: cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
 
 # Stage 2 – bootstrap cluster (Kubespray, ~20–40 min)
-# REQUIRES venv with ansible-core 2.17.x — Kubespray v2.30 hard-blocks 2.18+
-# Run directly from cluster/ so ansible.cfg is picked up (make bootstrap has inventory path issues)
-cd cluster && .venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml && cd ..
+# REQUIRES cluster/.venv with ansible-core 2.17.x — Kubespray v2.30 hard-blocks 2.18+
+make bootstrap
 
 # Stage 3 – fetch kubeconfig to ~/.kube/config-k8s-va (system ansible ok)
 make post-bootstrap
@@ -146,4 +145,4 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **Loki SingleBinary**: When `deploymentMode: SingleBinary`, must set `read.replicas: 0`, `write.replicas: 0`, `backend.replicas: 0` or chart validation fails.
 - **Credentials**: `cluster/inventory/prod/credentials/` is gitignored. Vault init JSON must never be committed.
 - **Ubuntu 24.04 + apt race**: `unattended-upgrades` starts immediately after VM boot and holds `/var/lib/apt/extended_states`, causing `apt-mark mkstemp EACCES` during Kubespray bootstrap. Fixed via `ubuntu_stop_unattended_upgrades: true` in `kubespray-all.yml` — Kubespray stops it before any apt operations.
-- **make bootstrap inventory path**: Makefile does `cd cluster && ansible-playbook -i cluster/inventory/prod/hosts.yaml ...` — after `cd cluster` the path resolves to `cluster/cluster/inventory/...` which may not exist. Always run bootstrap directly: `cd cluster && .venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml`.
+- **Makefile INVENTORY**: path is relative to `cluster/` (where all targets cd before running ansible). If overriding: `make host-prep INVENTORY=inventory/prod/hosts.yaml`, not the full `cluster/inventory/...` path.
