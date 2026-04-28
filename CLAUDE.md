@@ -10,14 +10,15 @@ All Ansible commands must run from `cluster/` (uses `ansible.cfg` there for inve
 # Always export kubeconfig before kubectl/helm commands
 export KUBECONFIG=~/.kube/config-k8s-va
 
-# Stage 1 – prepare nodes
+# Stage 1 – prepare nodes (system ansible ok)
 make host-prep
 # equivalent: cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
 
 # Stage 2 – bootstrap cluster (Kubespray, ~20–40 min)
-make bootstrap
+# REQUIRES venv with ansible-core 2.17.x — Kubespray v2.30 hard-blocks 2.18+
+source cluster/.venv/bin/activate && make bootstrap
 
-# Stage 3 – fetch kubeconfig to ~/.kube/config-k8s-va
+# Stage 3 – fetch kubeconfig to ~/.kube/config-k8s-va (system ansible ok)
 make post-bootstrap
 
 # Stage 4 – MetalLB → ingress-nginx → cert-manager → Argo CD
@@ -30,6 +31,13 @@ make reset
 make lint
 ```
 
+Create the venv once (only needed for `make bootstrap`):
+```bash
+cd cluster
+python3 -m venv .venv
+.venv/bin/pip install ansible==10.7.0 jmespath netaddr cryptography
+```
+
 Ad-hoc Ansible:
 ```bash
 cd cluster && ansible -i inventory/prod/hosts.yaml all -m ping
@@ -38,7 +46,7 @@ cd cluster && ansible -i inventory/prod/hosts.yaml all -m shell -a "systemctl is
 
 ## Environment / toolchain
 
-- **Ansible**: system ansible via `brew install ansible` (ansible-core 2.17+ required; cluster runs fine with 2.18). Run from `cluster/` so `ansible.cfg` is picked up automatically.
+- **Ansible**: system ansible (`brew install ansible`, ansible-core 2.18) for all steps **except** `make bootstrap`. For bootstrap, Kubespray v2.30 hard-requires ansible-core `2.17.3 ≤ x < 2.18.0` — use `cluster/.venv` (see above).
 - **SSH key**: hardcoded in `cluster/ansible.cfg` → `ssh_args` → `-i /Users/ai_ovsyannikov/.ssh/id_rsa_ansible2`
 - **Kubespray**: git submodule at `cluster/kubespray/` (branch v2.30.0). Init with `git submodule update --init --recursive`.
 

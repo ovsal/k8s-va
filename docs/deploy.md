@@ -27,6 +27,12 @@
 ### Инструменты на локальной машине (macOS)
 ```bash
 brew install helm kubectl vault ansible
+
+# Отдельный venv для Kubespray — ansible-core 2.17.x обязателен для шага 2
+# (Kubespray v2.30 жёстко блокирует версии 2.18+)
+cd cluster
+python3 -m venv .venv
+.venv/bin/pip install ansible==10.7.0 jmespath netaddr cryptography
 ```
 
 ---
@@ -134,13 +140,16 @@ ansible all -i cluster/inventory/prod/hosts.yaml -m shell -a "chronyc tracking |
 
 Kubespray запускает kubeadm на всех нодах, поднимает etcd (stacked), настраивает Calico CNI.
 
+> **Требование к версии ansible**: Kubespray v2.30 проверяет `2.17.3 ≤ ansible-core < 2.18.0` и завершается с ошибкой при других версиях. Необходимо активировать venv перед запуском.
+
 ```bash
+source cluster/.venv/bin/activate
 make bootstrap
 ```
 
 **Или напрямую:**
 ```bash
-cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
+cd cluster && .venv/bin/ansible-playbook -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
 ```
 
 > Время выполнения: ~20–40 минут в зависимости от скорости сети (скачивание образов).
