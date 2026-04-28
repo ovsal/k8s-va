@@ -95,14 +95,16 @@
       failed_when: "'NotReady' in node_status.stdout"
 
     - name: Check etcd cluster health
-      # Проверяем, что все 3 члена etcd-кластера живы и синхронизированы.
-      # ignore_errors: true — не фатально если etcd-pod ещё не полностью стартовал.
-      command: >
-        kubectl -n kube-system exec etcd-cp-1 -- etcdctl
-        --endpoints=https://127.0.0.1:2379
-        --cacert=/etc/kubernetes/pki/etcd/ca.crt
-        --cert=/etc/kubernetes/pki/etcd/peer.crt
-        --key=/etc/kubernetes/pki/etcd/peer.key
-        endpoint health --cluster
+      # Имя пода etcd зависит от hostname ноды — находим динамически по label.
+      # ignore_errors: true — не фатально если под ещё не стартовал.
+      shell: |
+        ETCD_POD=$(kubectl -n kube-system get pod -l component=etcd \
+          --no-headers -o custom-columns=NAME:.metadata.name | head -1)
+        kubectl -n kube-system exec "$ETCD_POD" -- etcdctl \
+          --endpoints=https://127.0.0.1:2379 \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          --cert=/etc/kubernetes/pki/etcd/peer.crt \
+          --key=/etc/kubernetes/pki/etcd/peer.key \
+          endpoint health --cluster
       changed_when: false
       ignore_errors: true
