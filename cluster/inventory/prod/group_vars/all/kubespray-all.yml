@@ -137,3 +137,9 @@ unsafe_show_logs: false
 
 ## If enabled it will allow kubespray to attempt setup even if the distribution is not supported. For unsupported distributions this can lead to unexpected failures in some cases.
 allow_unsupported_distribution_setup: false
+
+## Ubuntu 24.04: stop unattended-upgrades before apt operations to prevent
+## "mkstemp: Permission denied on /var/lib/apt/extended_states" errors.
+## The daemon holds apt state exclusively and blocks apt-mark writes.
+ubuntu_stop_unattended_upgrades: true
+ubuntu_kernel_unattended_upgrades_disabled: true
