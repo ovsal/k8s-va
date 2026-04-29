@@ -1,0 +1,156 @@
+---
+# Монтирует второй диск (storage_disk, по умолчанию /dev/sdb) на воркерах.
+# Переносит /var/lib/containerd на новый диск чтобы освободить корневой FS.
+# Longhorn использует /var/lib/longhorn — тоже переедет на новый диск.
+#
+# Порядок действий:
+#   1. Форматирует диск в ext4 (только если не отформатирован)
+#   2. Монтирует во временную точку /mnt/storage
+#   3. Останавливает kubelet и containerd
+#   4. Переносит /var/lib/containerd → /mnt/storage/containerd
+#   5. Переносит /var/lib/longhorn → /mnt/storage/longhorn
+#   6. Обновляет /etc/fstab (монтируется как /var/lib/containerd)
+#   7. Создаёт symlink /var/lib/longhorn → /mnt/storage/longhorn
+#   8. Запускает containerd и kubelet
+#
+# Запуск: make prepare-storage или
+# cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/40-prepare-storage-disk.yaml
+
+- name: Prepare secondary storage disk on worker nodes
+  hosts: kube_node
+  become: true
+  vars:
+    storage_disk: "{{ node_storage_disk | default('/dev/sdb') }}"
+    mount_point: /mnt/storage
+    containerd_dir: /var/lib/containerd
+    longhorn_dir: /var/lib/longhorn
+
+  tasks:
+    - name: Check disk exists
+      stat:
+        path: "{{ storage_disk }}"
+      register: disk_stat
+
+    - name: Fail if disk not found
+      fail:
+        msg: "Storage disk {{ storage_disk }} not found on {{ inventory_hostname }}"
+      when: not disk_stat.stat.exists
+
+    - name: Check if disk already has filesystem
+      command: blkid -s TYPE -o value {{ storage_disk }}
+      register: blkid_result
+      changed_when: false
+      failed_when: false
+
+    - name: Format disk as ext4 (only if no filesystem)
+      filesystem:
+        fstype: ext4
+        dev: "{{ storage_disk }}"
+        opts: -L storage
+      when: blkid_result.stdout == ""
+
+    - name: Create mount point
+      file:
+        path: "{{ mount_point }}"
+        state: directory
+        mode: '0755'
+
+    - name: Mount disk temporarily
+      mount:
+        path: "{{ mount_point }}"
+        src: "{{ storage_disk }}"
+        fstype: ext4
+        state: mounted
+
+    - name: Create target directories on new disk
+      file:
+        path: "{{ mount_point }}/{{ item }}"
+        state: directory
+        mode: '0711'
+      loop:
+        - containerd
+        - longhorn
+
+    - name: Check if containerd already moved (symlink exists)
+      stat:
+        path: "{{ containerd_dir }}"
+      register: containerd_stat
+
+    - name: Stop kubelet and containerd for migration
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - kubelet
+        - containerd
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Sync containerd data to new disk
+      shell: rsync -aHAX --remove-source-files {{ containerd_dir }}/ {{ mount_point }}/containerd/
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Remove old containerd directory
+      file:
+        path: "{{ containerd_dir }}"
+        state: absent
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Sync longhorn data to new disk
+      shell: rsync -aHAX {{ longhorn_dir }}/ {{ mount_point }}/longhorn/ 2>/dev/null || true
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Remove old fstab entries for storage disk
+      lineinfile:
+        path: /etc/fstab
+        regexp: "{{ storage_disk }}"
+        state: absent
+
+    - name: Add fstab entry — mount disk as /var/lib/containerd
+      lineinfile:
+        path: /etc/fstab
+        line: "LABEL=storage  {{ containerd_dir }}  ext4  defaults,noatime  0  2"
+        state: present
+
+    - name: Create /var/lib/containerd mount point
+      file:
+        path: "{{ containerd_dir }}"
+        state: directory
+        mode: '0711'
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Unmount temporary mount and remount as /var/lib/containerd
+      shell: |
+        umount {{ mount_point }} || true
+        mount {{ containerd_dir }}
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Remove old longhorn directory
+      file:
+        path: "{{ longhorn_dir }}"
+        state: absent
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Create symlink /var/lib/longhorn → mounted containerd disk
+      file:
+        path: "{{ longhorn_dir }}"
+        src: "{{ containerd_dir }}/../longhorn"
+        state: link
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Start containerd and kubelet
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - containerd
+        - kubelet
+
+    - name: Show disk layout after migration
+      command: df -h {{ containerd_dir }} /
+      register: df_output
+      changed_when: false
+
+    - name: Print disk layout
+      debug:
+        msg: "{{ df_output.stdout_lines }}"
