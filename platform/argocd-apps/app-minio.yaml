@@ -17,6 +17,11 @@ spec:
       helm:
         valueFiles:
           - $values/platform/apps/storage/minio-values.yaml
+    - repoURL: https://github.com/ovsal/k8s-va.git
+      targetRevision: main
+      path: platform/apps/storage
+      directory:
+        include: 'minio-externalsecret.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: minio
@@ -25,4 +30,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false
+      - CreateNamespace=true

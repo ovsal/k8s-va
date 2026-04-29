@@ -155,6 +155,16 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 | `platform/bootstrap/argocd/root-app.yaml` | Git repo URL for ArgoCD |
 | `platform/argocd-apps/_root.yaml` | AppProject (must list all Helm chart repos in sourceRepos) |
 
+## Core principles (IaC)
+
+**Everything as code — no manual `kubectl` or `helm` commands on the cluster.**
+
+- Namespaces → created by ArgoCD via `CreateNamespace=true` in syncOptions, or as manifest in `platform/apps/<component>/`
+- Kubernetes Secrets → always via ExternalSecret (ESO pulls from Vault); never `kubectl create secret`
+- Vault secrets population is the only accepted "manual" step (one-time seeding of credentials that cannot be stored in git)
+- Node labels/taints → `cluster/inventory/prod/host_vars/<node>.yaml` + `make label-nodes`
+- All cluster state changes must be representable as a git commit; if you can't express it in a file, find a way that allows it
+
 ## Known gotchas
 
 - **MetalLB helm upgrade conflict**: CRD caBundle annotation causes conflicts on re-upgrade. `bootstrap.sh` skips MetalLB upgrade if already installed.
