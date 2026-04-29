@@ -16,6 +16,11 @@ spec:
       helm:
         valueFiles:
           - $values/platform/apps/backup/values.yaml
+    - repoURL: https://github.com/ovsal/k8s-va.git
+      targetRevision: main
+      path: platform/apps/backup
+      directory:
+        include: 'velero-externalsecret.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: velero

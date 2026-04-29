@@ -123,22 +123,43 @@ Adding a new node: create `cluster/inventory/prod/host_vars/<node>.yaml` with `n
 
 StorageClasses in use: `longhorn` (Delete, 2 replicas) and `longhorn-retain` (Retain, 2 replicas) for stateful workloads. `local-path` kept for small ephemeral PVCs. When migrating stateful workloads to a different StorageClass, StatefulSet `volumeClaimTemplates` are immutable: you must **delete the StatefulSet** and let ArgoCD recreate it. Deleting the StatefulSet alone does not delete PVCs — delete those separately before re-sync if you need the new StorageClass.
 
-**Disk layout (workers):** `/dev/sdb` (800GB) formatted ext4, mounted at `/var/lib/containerd` via fstab (label=storage). `/var/lib/longhorn` → symlink to `/var/lib/containerd/longhorn`. Root disk freed from 83% → ~54% after migration. Run `make prepare-storage` to apply to new worker nodes.
+**Disk layout (workers):** `/dev/sdb` (800GB) formatted ext4, mounted at `/var/lib/containerd` via fstab (label=storage). `/var/lib/longhorn` is a **bind mount** (`/var/lib/containerd/longhorn → /var/lib/longhorn`), NOT a symlink. Root disk freed from 83% → ~54% after migration. Run `make prepare-storage` to apply to new worker nodes.
 
-### Vault initialization (manual, one-time)
+### Full cluster rebuild from scratch
+
+This is the complete sequence to bring up a new (or destroyed) cluster. Every step is a `make` target — no manual `kubectl` required.
 
 ```bash
-kubectl exec -n vault vault-0 -- vault operator init \
-  -key-shares=5 -key-threshold=3 -format=json > vault-init.json
-# Save vault-init.json outside the repo
+# 1. Prepare OS on all VMs
+make host-prep
 
-for pod in vault-0 vault-1 vault-2; do
-  for i in 0 1 2; do
-    key=$(jq -r ".unseal_keys_b64[$i]" vault-init.json)
-    kubectl exec -n vault $pod -- vault operator unseal $key
-  done
-done
+# 2. Bootstrap Kubernetes (~20–40 min, uses cluster/.venv)
+make bootstrap
+
+# 3. Fetch kubeconfig to ~/.kube/config-k8s-va
+make post-bootstrap
+
+# 4. Format /dev/sdb and bind-mount /var/lib/longhorn on workers
+make prepare-storage
+
+# 5. Apply node labels and taints from host_vars
+make label-nodes
+
+# 6. MetalLB → ingress-nginx → cert-manager → Argo CD + root App-of-Apps
+make bootstrap-platform
+# ArgoCD now deploys: Vault, ESO, Longhorn, MinIO app, Prometheus, Loki, Velero, ...
+# Wait ~5 min for Vault pods to come up before step 7.
+
+# 7. Initialize/unseal Vault, configure Kubernetes auth, ESO role, seed all secrets
+make vault-bootstrap
+# On a truly fresh cluster this prints new keys and exits — update credentials.env, then re-run.
+# On rebuild with existing credentials.env: unseals all replicas + seeds secrets automatically.
+
+# 8. Deploy MinIO (race condition workaround) + create buckets
+make apply-minio
 ```
+
+After step 8 everything is self-healing via ArgoCD. ESO syncs all secrets from Vault within ~1 minute.
 
 ### Domain / TLS
 
@@ -163,7 +184,7 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 
 - Namespaces → created by ArgoCD via `CreateNamespace=true` in syncOptions, or as manifest in `platform/apps/<component>/`
 - Kubernetes Secrets → always via ExternalSecret (ESO pulls from Vault); never `kubectl create secret`
-- Vault secrets population is the only accepted "manual" step (one-time seeding of credentials that cannot be stored in git)
+- Vault init/unseal/configure/seed → `make vault-bootstrap` (reads `credentials.env`). The only truly manual moment is saving new unseal keys to `credentials.env` on a brand-new cluster.
 - Node labels/taints → `cluster/inventory/prod/host_vars/<node>.yaml` + `make label-nodes`
 - All cluster state changes must be representable as a git commit; if you can't express it in a file, find a way that allows it
 - **After every action that changes cluster state** (ArgoCD sync, `make apply-secrets`, `make label-nodes`, manual kubectl, Vault init, etc.) — update CLAUDE.md to reflect the new state (component status, what's deployed, known issues). This is mandatory, not optional.
@@ -181,4 +202,6 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **MinIO + ArgoCD race condition**: MinIO chart v5.2.0 has a `minio-post-job` that ArgoCD's multi-source sync mishandles, causing all resources to appear "Missing" despite sync. Fix: `make apply-minio` (helm template | kubectl apply directly). ArgoCD app set to `prune: false` so manual apply isn't overwritten.
 - **Longhorn symlink vs bind mount**: `/var/lib/longhorn` MUST be a real directory (bind mount), NOT a symlink. Longhorn instance manager uses hostPath mount which doesn't follow symlinks — replicas fail with "no such file or directory" for engine binary.
 - **Worker root disk pressure**: workers have 18GB root disk. After moving containerd+longhorn to `/dev/sdb`, ~7GB freed on root. DiskPressure evictions can cascade if root disk fills up — watch `df -h /` on workers.
-- **Credentials**: stored in `credentials.env` (gitignored) at repo root. Apply to cluster with `make apply-secrets`. Grafana uses `grafana-admin` Secret; MinIO uses `minio-credentials` Secret (created by ExternalSecret when Vault is configured, or by `make apply-secrets` for now).
+- **Credentials flow**: `credentials.env` (gitignored) → `make vault-bootstrap` seeds Vault → ESO ExternalSecrets pull into K8s Secrets. `make apply-secrets` is a fallback only (pre-Vault). Never create secrets with `kubectl create secret` directly.
+- **MinIO buckets**: created by `minio-setup-job.yaml` applied via `make apply-minio`. Buckets: `k8s-velero-backup`, `loki`, `thanos`. Job is idempotent (`--ignore-existing`).
+- **Velero credentials**: ESO ExternalSecret `platform/apps/backup/velero-externalsecret.yaml` templates the AWS credentials file format under key `cloud`.

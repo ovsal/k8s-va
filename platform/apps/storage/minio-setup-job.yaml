@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+  namespace: minio
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2024-01-16T16-06-34Z
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: rootUser
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: rootPassword
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for MinIO to be ready..."
+              until mc alias set local \
+                http://minio.minio.svc.cluster.local:9000 \
+                "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}"; do
+                sleep 5
+              done
+              echo "Creating buckets..."
+              mc mb --ignore-existing local/k8s-velero-backup
+              mc mb --ignore-existing local/loki
+              mc mb --ignore-existing local/thanos
+              echo "Buckets ready:"
+              mc ls local/

@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform label-nodes apply-secrets lint
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform label-nodes vault-bootstrap apply-minio apply-secrets lint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -32,11 +32,17 @@ reset: ## DESTRUCTIVE: reset the cluster
 bootstrap-platform: ## Install pre-ArgoCD components + Argo CD
 	bash $(PLATFORM_DIR)/bootstrap/bootstrap.sh
 
-apply-minio: ## Deploy MinIO via helm template (workaround: ArgoCD race condition with post-job)
+vault-bootstrap: ## Init/unseal Vault + configure K8s auth + ESO role + seed all secrets from credentials.env
+	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
+	bash $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh
+
+apply-minio: ## Deploy MinIO via helm template + create buckets (workaround: ArgoCD race condition)
 	@export KUBECONFIG=$(KUBECONFIG_PATH); \
 	helm template minio minio/minio --version 5.2.0 --namespace minio \
 	  --values $(PLATFORM_DIR)/apps/storage/minio-values.yaml 2>/dev/null | \
-	kubectl apply -n minio -f -
+	kubectl apply -n minio -f -; \
+	echo "==> Applying MinIO bucket setup job..."; \
+	kubectl apply -f $(PLATFORM_DIR)/apps/storage/minio-setup-job.yaml
 
 apply-secrets: ## Apply all credentials from credentials.env to the cluster as K8s Secrets
 	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
