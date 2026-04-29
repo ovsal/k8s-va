@@ -16,6 +16,11 @@ spec:
       helm:
         valueFiles:
           - $values/platform/apps/observability/prometheus-values.yaml
+    - repoURL: https://github.com/ovsal/k8s-va.git
+      targetRevision: main
+      path: platform/apps/observability
+      directory:
+        include: 'grafana-externalsecret.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
