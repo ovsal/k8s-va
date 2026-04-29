@@ -1,6 +1,9 @@
 grafana:
   enabled: true
-  adminPassword: "changeme123!"   # ЗАМЕНИТЬ — вынести в Vault после Task 9
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
   ingress:
     enabled: true
     ingressClassName: nginx

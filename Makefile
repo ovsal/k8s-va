@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform lint
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform label-nodes apply-secrets lint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -28,6 +28,26 @@ reset: ## DESTRUCTIVE: reset the cluster
 
 bootstrap-platform: ## Install pre-ArgoCD components + Argo CD
 	bash $(PLATFORM_DIR)/bootstrap/bootstrap.sh
+
+apply-secrets: ## Apply all credentials from credentials.env to the cluster as K8s Secrets
+	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
+	@set -a; . ./credentials.env; set +a; \
+	export KUBECONFIG=$(KUBECONFIG_PATH); \
+	kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl create namespace velero --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl create secret generic minio-credentials -n minio \
+	  --from-literal=rootUser="$$MINIO_ROOT_USER" \
+	  --from-literal=rootPassword="$$MINIO_ROOT_PASSWORD" \
+	  --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl create secret generic velero-credentials -n velero \
+	  --from-literal=cloud="[default]\naws_access_key_id=$$VELERO_ACCESS_KEY\naws_secret_access_key=$$VELERO_SECRET_KEY" \
+	  --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl create secret generic grafana-admin -n monitoring \
+	  --from-literal=admin-user="admin" \
+	  --from-literal=admin-password="$$GRAFANA_ADMIN_PASSWORD" \
+	  --dry-run=client -o yaml | kubectl apply -f -; \
+	echo "Secrets applied."
 
 lint: ## Lint Ansible playbooks and Helm charts
 	@which ansible-lint >/dev/null 2>&1 || { echo "ansible-lint not installed, skipping"; exit 0; }

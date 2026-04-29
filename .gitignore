@@ -1,3 +1,4 @@
+credentials.env
 *.retry
 .vault_pass
 *.pem
