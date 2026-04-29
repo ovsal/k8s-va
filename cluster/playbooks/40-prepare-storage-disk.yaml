@@ -130,12 +130,21 @@
         state: absent
       when: not containerd_stat.stat.islnk | default(false)
 
-    - name: Create symlink /var/lib/longhorn → subdirectory on new disk
+    - name: Create real directory for longhorn bind mount
       file:
         path: "{{ longhorn_dir }}"
-        src: "{{ containerd_dir }}/longhorn"
-        state: link
-        force: true
+        state: directory
+        mode: '0711'
+      when: not containerd_stat.stat.islnk | default(false)
+
+    - name: Add bind mount /var/lib/longhorn → /var/lib/containerd/longhorn
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ containerd_dir }}/longhorn  {{ longhorn_dir }}  none  bind,x-systemd.requires-mounts-for={{ containerd_dir }}  0  0"
+        state: present
+
+    - name: Mount longhorn bind mount
+      command: mount {{ longhorn_dir }}
       when: not containerd_stat.stat.islnk | default(false)
 
     - name: Start containerd and kubelet

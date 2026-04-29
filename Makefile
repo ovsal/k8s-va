@@ -32,6 +32,12 @@ reset: ## DESTRUCTIVE: reset the cluster
 bootstrap-platform: ## Install pre-ArgoCD components + Argo CD
 	bash $(PLATFORM_DIR)/bootstrap/bootstrap.sh
 
+apply-minio: ## Deploy MinIO via helm template (workaround: ArgoCD race condition with post-job)
+	@export KUBECONFIG=$(KUBECONFIG_PATH); \
+	helm template minio minio/minio --version 5.2.0 --namespace minio \
+	  --values $(PLATFORM_DIR)/apps/storage/minio-values.yaml 2>/dev/null | \
+	kubectl apply -n minio -f -
+
 apply-secrets: ## Apply all credentials from credentials.env to the cluster as K8s Secrets
 	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
 	@set -a; . ./credentials.env; set +a; \

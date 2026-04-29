@@ -106,7 +106,7 @@ When using multi-source Applications (`sources:` array), always add the github r
 | Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO |
 | local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
 | **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install |
-| **MinIO** | minio | 5.2.0 | Pending — credentials in `minio-credentials` Secret; ExternalSecret needs Vault |
+| **MinIO** | minio | 5.2.0 | **Deployed ✓** Standalone; 500Gi on longhorn-retain; URL: minio.k8s.va.atmodev.net / minio-console.k8s.va.atmodev.net; deploy via `make apply-minio` (ArgoCD race condition with post-job workaround) |
 
 ### Node pools
 
@@ -178,5 +178,7 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **Ubuntu 24.04 + apt race**: `unattended-upgrades` starts immediately after VM boot and holds `/var/lib/apt/extended_states`, causing `apt-mark mkstemp EACCES` during Kubespray bootstrap. Fixed via `ubuntu_stop_unattended_upgrades: true` in `kubespray-all.yml` — Kubespray stops it before any apt operations.
 - **Makefile INVENTORY**: path is relative to `cluster/` (where all targets cd before running ansible). If overriding: `make host-prep INVENTORY=inventory/prod/hosts.yaml`, not the full `cluster/inventory/...` path.
 - **Longhorn + ArgoCD fresh install**: `preUpgradeChecker.jobEnabled: false` MUST be set in longhorn-values.yaml, otherwise the pre-upgrade Helm hook blocks deployment (service account doesn't exist yet on first install).
+- **MinIO + ArgoCD race condition**: MinIO chart v5.2.0 has a `minio-post-job` that ArgoCD's multi-source sync mishandles, causing all resources to appear "Missing" despite sync. Fix: `make apply-minio` (helm template | kubectl apply directly). ArgoCD app set to `prune: false` so manual apply isn't overwritten.
+- **Longhorn symlink vs bind mount**: `/var/lib/longhorn` MUST be a real directory (bind mount), NOT a symlink. Longhorn instance manager uses hostPath mount which doesn't follow symlinks — replicas fail with "no such file or directory" for engine binary.
 - **Worker root disk pressure**: workers have 18GB root disk. After moving containerd+longhorn to `/dev/sdb`, ~7GB freed on root. DiskPressure evictions can cascade if root disk fills up — watch `df -h /` on workers.
 - **Credentials**: stored in `credentials.env` (gitignored) at repo root. Apply to cluster with `make apply-secrets`. Grafana uses `grafana-admin` Secret; MinIO uses `minio-credentials` Secret (created by ExternalSecret when Vault is configured, or by `make apply-secrets` for now).
