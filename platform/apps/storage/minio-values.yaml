@@ -33,10 +33,7 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
   hosts:
-    - host: minio.k8s.va.atmodev.net
-      paths:
-        - path: /
-          pathType: Prefix
+    - minio.k8s.va.atmodev.net
   tls:
     - secretName: minio-tls
       hosts:
@@ -48,10 +45,7 @@ consoleIngress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    - host: minio-console.k8s.va.atmodev.net
-      paths:
-        - path: /
-          pathType: Prefix
+    - minio-console.k8s.va.atmodev.net
   tls:
     - secretName: minio-console-tls
       hosts:
