@@ -164,6 +164,7 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - Vault secrets population is the only accepted "manual" step (one-time seeding of credentials that cannot be stored in git)
 - Node labels/taints → `cluster/inventory/prod/host_vars/<node>.yaml` + `make label-nodes`
 - All cluster state changes must be representable as a git commit; if you can't express it in a file, find a way that allows it
+- **After every action that changes cluster state** (ArgoCD sync, `make apply-secrets`, `make label-nodes`, manual kubectl, Vault init, etc.) — update CLAUDE.md to reflect the new state (component status, what's deployed, known issues). This is mandatory, not optional.
 
 ## Known gotchas
 
