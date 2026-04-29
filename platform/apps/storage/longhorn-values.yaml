@@ -1,0 +1,32 @@
+defaultSettings:
+  defaultReplicaCount: 2
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  storageMinimalAvailablePercentage: 10
+  systemManagedComponentsNodeSelector: "node-pool:storage"
+
+longhornManager:
+  nodeSelector:
+    node-pool: storage
+
+longhornDriver:
+  nodeSelector:
+    node-pool: storage
+
+longhornUI:
+  nodeSelector:
+    node-pool: storage
+
+persistence:
+  defaultClass: false
+  defaultClassReplicaCount: 2
+  defaultFsType: ext4
+  reclaimPolicy: Delete
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  host: longhorn.k8s.va.atmodev.net
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls: true
+  tlsSecret: longhorn-tls

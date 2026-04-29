@@ -1,0 +1,30 @@
+---
+# Плейбук: применяет node_labels и node_taints из host_vars на каждую ноду.
+# Идемпотентен — безопасно перезапускать при любом изменении меток.
+# Запуск: make label-nodes
+
+- name: Apply node labels and taints
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  environment:
+    KUBECONFIG: "{{ lookup('env', 'HOME') }}/.kube/config-k8s-va"
+  tasks:
+
+    - name: Apply labels to nodes
+      vars:
+        label_args: >-
+          {% for k, v in hostvars[item].get('node_labels', {}).items() %}{{ k }}={{ v }} {% endfor %}
+      command: kubectl label node {{ item }} {{ label_args }} --overwrite
+      loop: "{{ groups['k8s_cluster'] }}"
+      when: hostvars[item].get('node_labels', {}) | length > 0
+      changed_when: true
+
+    - name: Apply taints to nodes
+      vars:
+        taint_args: >-
+          {% for t in hostvars[item].get('node_taints', []) %}{{ t.key }}={{ t.value }}:{{ t.effect }} {% endfor %}
+      command: kubectl taint node {{ item }} {{ taint_args }} --overwrite
+      loop: "{{ groups['k8s_cluster'] }}"
+      when: hostvars[item].get('node_taints', []) | length > 0
+      changed_when: true

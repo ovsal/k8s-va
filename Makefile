@@ -18,6 +18,9 @@ bootstrap: ## Bootstrap k8s cluster via Kubespray (requires cluster/.venv with a
 post-bootstrap: ## Fetch kubeconfig, install CLI tools on bastion
 	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/20-post-bootstrap.yaml
 
+label-nodes: ## Apply node labels and taints from host_vars (idempotent)
+	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/30-node-labels.yaml
+
 reset: ## DESTRUCTIVE: reset the cluster
 	@echo "WARNING: This will destroy the cluster. Press Ctrl+C to abort."
 	@sleep 5

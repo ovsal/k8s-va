@@ -2,11 +2,12 @@ configuration:
   backupStorageLocation:
     - name: default
       provider: aws
-      bucket: k8s-velero-backup   # ЗАМЕНИТЬ на S3_BUCKET
+      bucket: k8s-velero-backup
       config:
-        region: us-east-1          # ЗАМЕНИТЬ или оставить для minio
-        s3Url: https://s3.company.com   # ЗАМЕНИТЬ на S3_ENDPOINT
+        region: us-east-1
+        s3Url: http://minio.minio.svc.cluster.local:9000
         s3ForcePathStyle: "true"
+        insecureSkipTLSVerify: "true"
 
   volumeSnapshotLocation:
     - name: default

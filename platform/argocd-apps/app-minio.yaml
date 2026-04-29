@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://github.com/ovsal/k8s-va.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://charts.min.io/
+      chart: minio
+      targetRevision: 5.2.0
+      helm:
+        valueFiles:
+          - $values/platform/apps/storage/minio-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: minio
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

@@ -1,0 +1,4 @@
+node_labels:
+  node-pool: storage
+  storage.enabled: "true"
+node_taints: []

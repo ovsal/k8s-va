@@ -24,6 +24,9 @@ make post-bootstrap
 # Stage 4 – MetalLB → ingress-nginx → cert-manager → Argo CD
 make bootstrap-platform
 
+# Apply node labels and taints from host_vars (idempotent, run after adding/changing host_vars)
+make label-nodes
+
 # DESTRUCTIVE: tear down cluster (5-second pause then runs kubespray reset)
 make reset
 
@@ -69,7 +72,9 @@ Kubernetes 1.34.3 · Calico CNI (VXLAN, `interface=eth0`) · IPVS kube-proxy · 
 platform/bootstrap/argocd/root-app.yaml   ← applied once by bootstrap.sh
   └─ watches: platform/argocd-apps/        ← FLAT directory, no recurse
        ├─ _root.yaml                        ← AppProject "platform" (lists all allowed Helm repos)
-       ├─ app-storage.yaml
+       ├─ app-storage.yaml      (nfs-csi)
+       ├─ app-longhorn.yaml     (Longhorn block storage)
+       ├─ app-minio.yaml        (MinIO object storage)
        ├─ app-vault.yaml
        ├─ app-eso.yaml
        ├─ app-prometheus.yaml
@@ -98,12 +103,25 @@ When using multi-source Applications (`sources:` array), always add the github r
 | Loki | monitoring | — | SingleBinary mode; read/write/backend replicas: 0 |
 | Vault | vault | 0.28.0 | 3-replica Raft HA; injector disabled (use ESO) |
 | External Secrets Operator | external-secrets | — | Connects to Vault |
-| Velero | velero | — | Requires `velero-credentials` secret from ESO |
-| local-path-provisioner | kube-system | v0.0.30 | **Temporary** storage until NFS/Longhorn available |
+| Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO |
+| local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
+| **Longhorn** | longhorn-system | 1.7.2 | Replicated block storage on worker 1TB disks; StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain) |
+| **MinIO** | minio | 5.2.0 | S3-compatible object storage; standalone → distributed when 4+ storage nodes |
+
+### Node pools
+
+Nodes are labeled via `cluster/inventory/prod/host_vars/<node>.yaml` and applied with `make label-nodes`.
+
+| Pool | Label | Taint | Workloads |
+|---|---|---|---|
+| storage | `node-pool=storage` | none | Longhorn, MinIO, Vault, Loki, Prometheus, platform |
+| compute | `node-pool=compute` | `dedicated=compute:NoSchedule` | transcoding workers, stateless API pods |
+
+Adding a new node: create `cluster/inventory/prod/host_vars/<node>.yaml` with `node_labels` and `node_taints`, then `make label-nodes`.
 
 ### Storage
 
-Current default StorageClass is `local-path` (Rancher local-path-provisioner). This is temporary — planned replacement with Longhorn or NFS. When migrating stateful workloads to a different StorageClass, StatefulSet `volumeClaimTemplates` are immutable: you must **delete the StatefulSet** and let ArgoCD recreate it. Deleting the StatefulSet alone does not delete PVCs — delete those separately before re-sync if you need the new StorageClass.
+StorageClasses in use: `longhorn` (Delete, 2 replicas) and `longhorn-retain` (Retain, 2 replicas) for stateful workloads. `local-path` kept for small ephemeral PVCs. When migrating stateful workloads to a different StorageClass, StatefulSet `volumeClaimTemplates` are immutable: you must **delete the StatefulSet** and let ArgoCD recreate it. Deleting the StatefulSet alone does not delete PVCs — delete those separately before re-sync if you need the new StorageClass.
 
 ### Vault initialization (manual, one-time)
 

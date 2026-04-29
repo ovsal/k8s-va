@@ -1,0 +1,58 @@
+mode: standalone
+
+existingSecret: minio-credentials
+
+persistence:
+  enabled: true
+  storageClass: longhorn-retain
+  size: 500Gi
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 2Gi
+    cpu: "1"
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-pool
+              operator: In
+              values:
+                - storage
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+  hosts:
+    - host: minio.k8s.va.atmodev.net
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: minio-tls
+      hosts:
+        - minio.k8s.va.atmodev.net
+
+consoleIngress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: minio-console.k8s.va.atmodev.net
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: minio-console-tls
+      hosts:
+        - minio-console.k8s.va.atmodev.net
