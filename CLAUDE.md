@@ -105,8 +105,8 @@ When using multi-source Applications (`sources:` array), always add the github r
 | External Secrets Operator | external-secrets | — | Connects to Vault |
 | Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO |
 | local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
-| **Longhorn** | longhorn-system | 1.7.2 | Replicated block storage on worker 1TB disks; StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain) |
-| **MinIO** | minio | 5.2.0 | S3-compatible object storage; standalone → distributed when 4+ storage nodes |
+| **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install |
+| **MinIO** | minio | 5.2.0 | Pending — credentials in `minio-credentials` Secret; ExternalSecret needs Vault |
 
 ### Node pools
 
@@ -122,6 +122,8 @@ Adding a new node: create `cluster/inventory/prod/host_vars/<node>.yaml` with `n
 ### Storage
 
 StorageClasses in use: `longhorn` (Delete, 2 replicas) and `longhorn-retain` (Retain, 2 replicas) for stateful workloads. `local-path` kept for small ephemeral PVCs. When migrating stateful workloads to a different StorageClass, StatefulSet `volumeClaimTemplates` are immutable: you must **delete the StatefulSet** and let ArgoCD recreate it. Deleting the StatefulSet alone does not delete PVCs — delete those separately before re-sync if you need the new StorageClass.
+
+**Disk layout (workers):** `/dev/sdb` (800GB) formatted ext4, mounted at `/var/lib/containerd` via fstab (label=storage). `/var/lib/longhorn` → symlink to `/var/lib/containerd/longhorn`. Root disk freed from 83% → ~54% after migration. Run `make prepare-storage` to apply to new worker nodes.
 
 ### Vault initialization (manual, one-time)
 
@@ -175,3 +177,6 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **Credentials**: `cluster/inventory/prod/credentials/` is gitignored. Vault init JSON must never be committed.
 - **Ubuntu 24.04 + apt race**: `unattended-upgrades` starts immediately after VM boot and holds `/var/lib/apt/extended_states`, causing `apt-mark mkstemp EACCES` during Kubespray bootstrap. Fixed via `ubuntu_stop_unattended_upgrades: true` in `kubespray-all.yml` — Kubespray stops it before any apt operations.
 - **Makefile INVENTORY**: path is relative to `cluster/` (where all targets cd before running ansible). If overriding: `make host-prep INVENTORY=inventory/prod/hosts.yaml`, not the full `cluster/inventory/...` path.
+- **Longhorn + ArgoCD fresh install**: `preUpgradeChecker.jobEnabled: false` MUST be set in longhorn-values.yaml, otherwise the pre-upgrade Helm hook blocks deployment (service account doesn't exist yet on first install).
+- **Worker root disk pressure**: workers have 18GB root disk. After moving containerd+longhorn to `/dev/sdb`, ~7GB freed on root. DiskPressure evictions can cascade if root disk fills up — watch `df -h /` on workers.
+- **Credentials**: stored in `credentials.env` (gitignored) at repo root. Apply to cluster with `make apply-secrets`. Grafana uses `grafana-admin` Secret; MinIO uses `minio-credentials` Secret (created by ExternalSecret when Vault is configured, or by `make apply-secrets` for now).

@@ -130,11 +130,12 @@
         state: absent
       when: not containerd_stat.stat.islnk | default(false)
 
-    - name: Create symlink /var/lib/longhorn → mounted containerd disk
+    - name: Create symlink /var/lib/longhorn → subdirectory on new disk
       file:
         path: "{{ longhorn_dir }}"
-        src: "{{ containerd_dir }}/../longhorn"
+        src: "{{ containerd_dir }}/longhorn"
         state: link
+        force: true
       when: not containerd_stat.stat.islnk | default(false)
 
     - name: Start containerd and kubelet
