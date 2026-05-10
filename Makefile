@@ -36,13 +36,11 @@ vault-bootstrap: ## Init/unseal Vault + configure K8s auth + ESO role + seed all
 	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
 	bash $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh
 
-apply-minio: ## Deploy MinIO via helm template + create buckets (workaround: ArgoCD race condition)
+apply-minio: ## Deploy MinIO via helm template (workaround: ArgoCD race condition with chart post-job on first deploy). Bucket creation handled by ArgoCD PostSync hook.
 	@export KUBECONFIG=$(KUBECONFIG_PATH); \
 	helm template minio minio/minio --version 5.2.0 --namespace minio \
 	  --values $(PLATFORM_DIR)/apps/storage/minio-values.yaml 2>/dev/null | \
-	kubectl apply -n minio -f -; \
-	echo "==> Applying MinIO bucket setup job..."; \
-	kubectl apply -f $(PLATFORM_DIR)/apps/storage/minio-setup-job.yaml
+	kubectl apply -n minio -f -
 
 apply-secrets: ## Apply all credentials from credentials.env to the cluster as K8s Secrets
 	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }

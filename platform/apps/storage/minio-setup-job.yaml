@@ -3,6 +3,9 @@ kind: Job
 metadata:
   name: minio-setup
   namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   ttlSecondsAfterFinished: 600
   template:

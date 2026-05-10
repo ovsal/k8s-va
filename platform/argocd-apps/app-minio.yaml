@@ -21,7 +21,7 @@ spec:
       targetRevision: main
       path: platform/apps/storage
       directory:
-        include: 'minio-externalsecret.yaml'
+        include: '{minio-externalsecret.yaml,minio-setup-job.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: minio
