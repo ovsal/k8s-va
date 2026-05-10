@@ -23,13 +23,13 @@ set -a; source "${CREDENTIALS_FILE}"; set +a
 # vault CLI inside vault-0, no token
 v0() {
   kubectl exec -n vault vault-0 -- \
-    env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault "$@"
+    env VAULT_ADDR=http://127.0.0.1:8200 vault "$@"
 }
 
 # vault CLI inside vault-0, with root token
 vr() {
   kubectl exec -n vault vault-0 -- \
-    env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+    env VAULT_ADDR=http://127.0.0.1:8200 \
         VAULT_TOKEN="${VAULT_ROOT_TOKEN}" vault "$@"
 }
 
@@ -38,20 +38,20 @@ unseal_pod() {
   kubectl get pod "${pod}" -n vault &>/dev/null || return 0
   local sealed
   sealed=$(kubectl exec -n vault "${pod}" -- \
-    env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+    env VAULT_ADDR=http://127.0.0.1:8200 \
     vault status -format=json 2>/dev/null \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('sealed','true'))" \
     2>/dev/null || echo "true")
   if [[ "${sealed}" == "true" ]]; then
     echo "    Unsealing ${pod}..."
     kubectl exec -n vault "${pod}" -- \
-      env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+      env VAULT_ADDR=http://127.0.0.1:8200 \
       vault operator unseal "${VAULT_UNSEAL_KEY_1}" >/dev/null
     kubectl exec -n vault "${pod}" -- \
-      env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+      env VAULT_ADDR=http://127.0.0.1:8200 \
       vault operator unseal "${VAULT_UNSEAL_KEY_2}" >/dev/null
     kubectl exec -n vault "${pod}" -- \
-      env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+      env VAULT_ADDR=http://127.0.0.1:8200 \
       vault operator unseal "${VAULT_UNSEAL_KEY_3}" >/dev/null
   else
     echo "    ${pod} already unsealed"
