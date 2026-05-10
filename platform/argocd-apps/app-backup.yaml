@@ -20,7 +20,7 @@ spec:
       targetRevision: main
       path: platform/apps/backup
       directory:
-        include: 'velero-externalsecret.yaml'
+        include: '{velero-externalsecret.yaml,velero-monitoring.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
