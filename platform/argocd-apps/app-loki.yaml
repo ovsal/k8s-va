@@ -16,6 +16,11 @@ spec:
       helm:
         valueFiles:
           - $values/platform/apps/observability/loki-values.yaml
+    - repoURL: https://github.com/ovsal/k8s-va.git
+      targetRevision: main
+      path: platform/apps/observability
+      directory:
+        include: 'loki-pdb.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
