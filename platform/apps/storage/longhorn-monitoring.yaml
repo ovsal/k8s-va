@@ -1,0 +1,65 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: longhorn-alerts
+  namespace: longhorn-system
+spec:
+  groups:
+    - name: longhorn.storage
+      rules:
+        - alert: LonghornVolumeSpaceLow
+          expr: |
+            (longhorn_volume_capacity_bytes - longhorn_volume_actual_size_bytes)
+            / longhorn_volume_capacity_bytes < 0.20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn volume {{ $labels.volume }} space below 20%"
+            description: "Volume {{ $labels.volume }} has less than 20% free space. Current: {{ $value | humanizePercentage }}"
+
+        - alert: LonghornNodeDiskPressure
+          expr: |
+            longhorn_node_storage_schedulable_bytes
+            / longhorn_node_storage_capacity_bytes < 0.15
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn node {{ $labels.node }} disk schedulable space below 15%"
+            description: "Node {{ $labels.node }} has less than 15% schedulable disk space. Current: {{ $value | humanizePercentage }}"
+
+        - alert: LonghornNodeDiskCritical
+          expr: |
+            longhorn_node_storage_schedulable_bytes
+            / longhorn_node_storage_capacity_bytes < 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn node {{ $labels.node }} disk schedulable space CRITICAL (below 5%)"
+            description: "Node {{ $labels.node }} has less than 5% schedulable disk space. Current: {{ $value | humanizePercentage }}"
+
+        - alert: LonghornVolumeRobustnessNotHealthy
+          expr: longhorn_volume_robustness > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn volume {{ $labels.volume }} is not healthy"
+            description: "Volume {{ $labels.volume }} robustness is {{ $labels.robustness }} (expected: healthy)"

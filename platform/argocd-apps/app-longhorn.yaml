@@ -21,7 +21,7 @@ spec:
       targetRevision: main
       path: platform/apps/storage
       directory:
-        include: 'longhorn-storageclasses.yaml'
+        include: '{longhorn-storageclasses.yaml,longhorn-monitoring.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system

@@ -4,7 +4,7 @@ preUpgradeChecker:
 defaultSettings:
   defaultReplicaCount: 2
   nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
-  storageMinimalAvailablePercentage: 10
+  storageMinimalAvailablePercentage: 15
   systemManagedComponentsNodeSelector: "node-pool:storage"
 
 longhornManager:
