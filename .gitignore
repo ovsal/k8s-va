@@ -16,3 +16,4 @@ cluster/.ansible/
 cluster/inventory/prod/credentials/
 .agents/
 .github/
+smoke-tests/
