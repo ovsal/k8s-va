@@ -6,7 +6,7 @@ Vault — центральное хранилище секретов для кл
 - единое место хранения паролей/ключей/API-токенов
 - разграничение доступа через policies
 - аудит доступа (audit devices)
-- интеграция с Kubernetes auth (следующий шаг после базового поднятия)
+- интеграция с Kubernetes auth (для ESO и приложений в кластере)
 
 ### Как деплоится
 
@@ -86,5 +86,40 @@ kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 Основной способ выдачи секретов в Kubernetes — **External Secrets Operator (ESO)** (см. `docs/external-secrets.md`):
 - Vault (KV v2, `secret/`) → ESO → Kubernetes `Secret`
 
-До этого момента Vault используется вручную (CLI/UI) для создания секретов и проверки доступа.
+#### Kubernetes auth + ESO (операционная настройка)
+
+В GitOps лежит только RBAC, чтобы Vault мог валидировать JWT Kubernetes:
+- `platform/argocd-apps/secrets/vault/kubernetes-auth-delegator.yaml` — `ClusterRoleBinding` на `system:auth-delegator` для SA `secrets-vault`.
+
+Дальше **один раз** из пода `secrets-vault-0` (с действующим root token):
+
+```bash
+export VAULT_TOKEN="…"
+
+vault auth enable kubernetes
+
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc:443" \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+  token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token
+
+vault policy write eso-policy - <<'EOF'
+path "secret/data/platform/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/platform/*" {
+  capabilities = ["list", "read"]
+}
+EOF
+
+vault write auth/kubernetes/role/eso-role \
+  bound_service_account_names=secrets-external-secrets \
+  bound_service_account_namespaces=external-secrets \
+  policies=eso-policy \
+  ttl=1h
+```
+
+Пример секрета для демо ESO: `vault kv put secret/platform/example demo=my-value`.
+
+Для ручной проверки доступа без ESO используйте UI/CLI Vault.
 

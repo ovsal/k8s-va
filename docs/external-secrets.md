@@ -25,7 +25,7 @@ ESO разворачивается **строго через Argo CD**:
 ClusterSecretStore:
 - `platform/argocd-apps/secrets/secret-stores/vault-clustersecretstore.yaml`
 - обращается к Vault по адресу `http://secrets-vault-active.vault.svc:8200`
-- аутентифицируется в Vault через Kubernetes auth (ServiceAccount `external-secrets`)
+- аутентифицируется в Vault через Kubernetes auth (ServiceAccount `secrets-external-secrets` в `external-secrets`)
 - использует роль Vault `eso-role`
 
 ### Как сервису получить секрет
