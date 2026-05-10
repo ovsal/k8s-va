@@ -16,7 +16,7 @@ Vault разворачивается **строго через Argo CD** (GitOps
 - Helm chart: `hashicorp/vault` версии `0.32.0`
 
 Режим работы:
-- **HA + integrated storage (raft)**: 3 реплики
+- **HA + integrated storage (raft)**: сейчас 2 реплики (пока 2 worker-ноды); при добавлении `worker-3+` увеличим до 3
 - Данные: PVC на `StorageClass` **`longhorn-ha`**
 
 Доступ снаружи (для администрирования/UI):
@@ -42,10 +42,10 @@ kubectl -n vault get pods -o wide
 
 #### 2) Инициализация (один раз)
 
-Запускать только на одной реплике (например, `vault-0`):
+Запускать только на одной реплике (например, `secrets-vault-0`):
 
 ```bash
-kubectl -n vault exec -it vault-0 -- vault operator init
+kubectl -n vault exec -it secrets-vault-0 -- vault operator init
 ```
 
 Сохраните выведенные:
@@ -57,22 +57,21 @@ kubectl -n vault exec -it vault-0 -- vault operator init
 На каждой реплике применить threshold-кол-во ключей (обычно 3):
 
 ```bash
-kubectl -n vault exec -it vault-0 -- vault operator unseal
-kubectl -n vault exec -it vault-1 -- vault operator unseal
-kubectl -n vault exec -it vault-2 -- vault operator unseal
+kubectl -n vault exec -it secrets-vault-0 -- vault operator unseal
+kubectl -n vault exec -it secrets-vault-1 -- vault operator unseal
 ```
 
 #### 4) Проверка raft кластера
 
 ```bash
-kubectl -n vault exec -it vault-0 -- vault status
-kubectl -n vault exec -it vault-0 -- vault operator raft list-peers
+kubectl -n vault exec -it secrets-vault-0 -- vault status
+kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 ```
 
 Ожидаемо:
 - `Initialized: true`
 - `Sealed: false`
-- peers = 3
+- peers = 2 (сейчас) или 3 (когда добавим третью реплику)
 
 ### Как использовать (для других систем)
 
