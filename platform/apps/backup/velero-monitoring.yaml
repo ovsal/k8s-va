@@ -20,33 +20,35 @@ kind: PrometheusRule
 metadata:
   name: velero-alerts
   namespace: velero
+  labels:
+    release: kube-prometheus-stack
 spec:
   groups:
     - name: velero.backup
       rules:
         - alert: VeleroBackupFailed
-          expr: velero_backup_failure_total > 0
+          expr: increase(velero_backup_failure_total[1h]) > 0
           for: 15m
           labels:
             severity: critical
           annotations:
             summary: "Velero backup {{ $labels.schedule }} failed"
-            description: "Velero backup for schedule {{ $labels.schedule }} has failures. Total failures: {{ $value }}"
+            description: "Velero backup for schedule {{ $labels.schedule }} has failures in the last hour"
 
-        - alert: VeleroBackupMissed
+        - alert: VeleroBackupNotSuccessful
           expr: velero_backup_last_status != 1
           for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "Velero backup schedule {{ $labels.schedule }} not completed"
-            description: "Backup schedule {{ $labels.schedule }} last status is not successful"
+            summary: "Velero backup schedule {{ $labels.schedule }} last status not successful"
+            description: "Backup schedule {{ $labels.schedule }} last backup did not complete successfully"
 
         - alert: VeleroBackupPartialFailure
-          expr: velero_backup_partial_failure_total > 0
+          expr: increase(velero_backup_partial_failure_total[1h]) > 0
           for: 15m
           labels:
             severity: warning
           annotations:
             summary: "Velero backup {{ $labels.schedule }} has partial failures"
-            description: "Velero backup for schedule {{ $labels.schedule }} completed with partial failures: {{ $value }}"
+            description: "Velero backup for schedule {{ $labels.schedule }} completed with partial failures in the last hour"

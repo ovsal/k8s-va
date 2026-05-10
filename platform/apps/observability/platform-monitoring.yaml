@@ -57,6 +57,8 @@ kind: PrometheusRule
 metadata:
   name: platform-alerts
   namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
 spec:
   groups:
     - name: argocd
@@ -71,7 +73,7 @@ spec:
             description: "App {{ $labels.name }} in project {{ $labels.project }} has sync status: {{ $labels.sync_status }}"
 
         - alert: ArgoCDAppUnhealthy
-          expr: argocd_app_info{health_status!="Healthy"} > 0
+          expr: argocd_app_info{health_status!~"Healthy|Progressing"} > 0
           for: 10m
           labels:
             severity: warning
@@ -92,7 +94,7 @@ spec:
 
         - alert: CertManagerCertExpiryCritical
           expr: certmanager_certificate_expiration_timestamp_seconds - time() < 24 * 3600
-          for: 1h
+          for: 15m
           labels:
             severity: critical
           annotations:
