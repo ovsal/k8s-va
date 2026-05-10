@@ -153,11 +153,20 @@ vr kv put secret/platform/velero \
 vr kv put secret/platform/argocd \
   admin_password="${ARGOCD_ADMIN_PASSWORD}"
 
+if [[ -n "${REGISTRY_URL:-}" && -n "${REGISTRY_USERNAME:-}" && -n "${REGISTRY_PASSWORD:-}" ]]; then
+  vr kv put secret/platform/registry \
+    url="${REGISTRY_URL}" \
+    username="${REGISTRY_USERNAME}" \
+    password="${REGISTRY_PASSWORD}"
+else
+  echo "    Registry credentials not fully set; skipping secret/platform/registry"
+fi
+
 echo "    All secrets written to Vault"
 
 # ── 6. force ESO sync ─────────────────────────────────────────────────────────
 echo "==> [6/6] Triggering immediate ESO sync..."
-for pair in "monitoring/grafana-admin" "minio/minio-credentials" "velero/velero-credentials"; do
+for pair in "monitoring/grafana-admin" "minio/minio-credentials" "velero/velero-credentials" "va-dev/registry-pull-secret" "va-stage/registry-pull-secret" "va-prod/registry-pull-secret"; do
   ns="${pair%%/*}"; es="${pair##*/}"
   kubectl annotate externalsecret "${es}" -n "${ns}" \
     force-sync="$(date +%s)" --overwrite 2>/dev/null \

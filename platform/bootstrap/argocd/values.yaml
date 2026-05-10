@@ -13,7 +13,7 @@ server:
   config:
     # URL репозитория платформы (публичный или с deploy key)
     repositories: |
-      - url: https://github.com/company/k8s-platform.git
+      - url: https://github.com/ovsal/k8s-va.git
   rbacConfig:
     policy.default: role:readonly
     policy.csv: |

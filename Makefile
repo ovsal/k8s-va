@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform label-nodes vault-bootstrap apply-minio apply-secrets lint
+.PHONY: help host-prep bootstrap post-bootstrap prepare-storage reset bootstrap-platform label-nodes vault-bootstrap apply-minio apply-secrets lint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -63,7 +63,15 @@ apply-secrets: ## Apply all credentials from credentials.env to the cluster as K
 	echo "Secrets applied."
 
 lint: ## Lint Ansible playbooks and Helm charts
-	@which ansible-lint >/dev/null 2>&1 || { echo "ansible-lint not installed, skipping"; exit 0; }
-	cd $(CLUSTER_DIR) && ansible-lint playbooks/
-	@which helm >/dev/null 2>&1 || { echo "helm not installed, skipping helm lint"; exit 0; }
-	helm lint $(PLATFORM_DIR)/charts/microservice/ 2>/dev/null || true
+	@if which ansible-lint >/dev/null 2>&1; then cd $(CLUSTER_DIR) && ansible-lint playbooks/; else echo "ansible-lint not installed, skipping"; fi
+	@if which ansible-playbook >/dev/null 2>&1; then \
+	  mkdir -p $(CLUSTER_DIR)/.ansible/tmp $(CLUSTER_DIR)/.ansible/facts_cache; \
+	  cd $(CLUSTER_DIR) && ansible-playbook --syntax-check playbooks/00-host-prep.yaml; \
+	  ansible-playbook --syntax-check playbooks/20-post-bootstrap.yaml; \
+	  ansible-playbook --syntax-check playbooks/30-node-labels.yaml; \
+	  ansible-playbook --syntax-check playbooks/40-prepare-storage-disk.yaml; \
+	  ansible-playbook --syntax-check playbooks/99-reset.yaml; \
+	else echo "ansible-playbook not installed, skipping syntax-check"; fi
+	@if which helm >/dev/null 2>&1; then helm lint $(PLATFORM_DIR)/charts/microservice/; else echo "helm not installed, skipping helm lint"; fi
+	bash -n $(PLATFORM_DIR)/bootstrap/bootstrap.sh
+	bash -n $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh

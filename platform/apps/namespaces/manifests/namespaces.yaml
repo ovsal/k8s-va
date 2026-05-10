@@ -1,3 +1,0 @@
-# Namespace objects managed by platform/apps/policies/manifests/namespace-labels.yaml
-# (которые включают pod-security.kubernetes.io/* labels)
-# Здесь только те namespaces, которых нет в policies (если таковые появятся)

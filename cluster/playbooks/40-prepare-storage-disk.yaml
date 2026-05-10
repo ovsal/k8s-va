@@ -1,151 +1,186 @@
 ---
-# Монтирует второй диск (storage_disk, по умолчанию /dev/sdb) на воркерах.
-# Переносит /var/lib/containerd на новый диск чтобы освободить корневой FS.
-# Longhorn использует /var/lib/longhorn — тоже переедет на новый диск.
+# Prepare the secondary worker disk for containerd and Longhorn data.
 #
-# Порядок действий:
-#   1. Форматирует диск в ext4 (только если не отформатирован)
-#   2. Монтирует во временную точку /mnt/storage
-#   3. Останавливает kubelet и containerd
-#   4. Переносит /var/lib/containerd → /mnt/storage/containerd
-#   5. Переносит /var/lib/longhorn → /mnt/storage/longhorn
-#   6. Обновляет /etc/fstab (монтируется как /var/lib/containerd)
-#   7. Создаёт symlink /var/lib/longhorn → /mnt/storage/longhorn
-#   8. Запускает containerd и kubelet
+# Resulting layout:
+#   /dev/sdb (or node_storage_disk) -> /var/lib/containerd
+#   /var/lib/containerd/longhorn   -> /var/lib/longhorn (bind mount)
 #
-# Запуск: make prepare-storage или
-# cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/40-prepare-storage-disk.yaml
+# The playbook is intentionally keyed on mount state, not symlinks. Longhorn
+# hostPath mounts require /var/lib/longhorn to be a real directory.
 
 - name: Prepare secondary storage disk on worker nodes
   hosts: kube_node
   become: true
   vars:
     storage_disk: "{{ node_storage_disk | default('/dev/sdb') }}"
-    mount_point: /mnt/storage
+    storage_fstype: ext4
+    temp_mount_point: /mnt/storage
     containerd_dir: /var/lib/containerd
     longhorn_dir: /var/lib/longhorn
 
   tasks:
-    - name: Check disk exists
+    - name: Check storage disk exists
       stat:
         path: "{{ storage_disk }}"
       register: disk_stat
 
-    - name: Fail if disk not found
+    - name: Fail if storage disk is missing
       fail:
         msg: "Storage disk {{ storage_disk }} not found on {{ inventory_hostname }}"
       when: not disk_stat.stat.exists
 
-    - name: Check if disk already has filesystem
-      command: blkid -s TYPE -o value {{ storage_disk }}
-      register: blkid_result
+    - name: Check if containerd directory is already a mountpoint
+      command: mountpoint -q {{ containerd_dir }}
+      register: containerd_mountpoint
       changed_when: false
       failed_when: false
 
-    - name: Format disk as ext4 (only if no filesystem)
+    - name: Check existing filesystem type
+      command: blkid -s TYPE -o value {{ storage_disk }}
+      register: blkid_type
+      changed_when: false
+      failed_when: false
+
+    - name: Format storage disk as ext4 when empty
       filesystem:
-        fstype: ext4
+        fstype: "{{ storage_fstype }}"
         dev: "{{ storage_disk }}"
         opts: -L storage
-      when: blkid_result.stdout == ""
+      when: blkid_type.stdout == ""
 
-    - name: Create mount point
-      file:
-        path: "{{ mount_point }}"
-        state: directory
-        mode: '0755'
+    - name: Read storage disk UUID
+      command: blkid -s UUID -o value {{ storage_disk }}
+      register: storage_uuid
+      changed_when: false
 
-    - name: Mount disk temporarily
-      mount:
-        path: "{{ mount_point }}"
-        src: "{{ storage_disk }}"
-        fstype: ext4
-        state: mounted
+    - name: Fail if storage disk UUID is unavailable
+      fail:
+        msg: "Could not read UUID from {{ storage_disk }} on {{ inventory_hostname }}"
+      when: storage_uuid.stdout | trim == ""
 
-    - name: Create target directories on new disk
-      file:
-        path: "{{ mount_point }}/{{ item }}"
-        state: directory
-        mode: '0711'
-      loop:
-        - containerd
-        - longhorn
+    - name: Set storage mount source
+      set_fact:
+        storage_mount_src: "UUID={{ storage_uuid.stdout | trim }}"
 
-    - name: Check if containerd already moved (symlink exists)
+    - name: Stat current containerd directory
       stat:
         path: "{{ containerd_dir }}"
       register: containerd_stat
 
-    - name: Stop kubelet and containerd for migration
+    - name: Stat current Longhorn directory
+      stat:
+        path: "{{ longhorn_dir }}"
+      register: longhorn_stat
+
+    - name: Create temporary mount point
+      file:
+        path: "{{ temp_mount_point }}"
+        state: directory
+        mode: '0755'
+      when: containerd_mountpoint.rc != 0
+
+    - name: Mount storage disk temporarily for migration
+      mount:
+        path: "{{ temp_mount_point }}"
+        src: "{{ storage_mount_src }}"
+        fstype: "{{ storage_fstype }}"
+        state: ephemeral
+      when: containerd_mountpoint.rc != 0
+
+    - name: Ensure Longhorn target directory exists on storage disk
+      file:
+        path: "{{ temp_mount_point }}/longhorn"
+        state: directory
+        mode: '0711'
+      when: containerd_mountpoint.rc != 0
+
+    - name: Stop kubelet and containerd for data migration
       systemd:
         name: "{{ item }}"
         state: stopped
       loop:
         - kubelet
         - containerd
-      when: not containerd_stat.stat.islnk | default(false)
+      when: containerd_mountpoint.rc != 0
 
-    - name: Sync containerd data to new disk
-      shell: rsync -aHAX --remove-source-files {{ containerd_dir }}/ {{ mount_point }}/containerd/
-      when: not containerd_stat.stat.islnk | default(false)
+    - name: Sync containerd data to storage disk root
+      command: rsync -aHAX --numeric-ids {{ containerd_dir }}/ {{ temp_mount_point }}/
+      when:
+        - containerd_mountpoint.rc != 0
+        - containerd_stat.stat.exists
+        - containerd_stat.stat.isdir | default(false)
 
-    - name: Remove old containerd directory
+    - name: Sync Longhorn data to storage disk
+      command: rsync -aHAX --numeric-ids {{ longhorn_dir }}/ {{ temp_mount_point }}/longhorn/
+      when:
+        - containerd_mountpoint.rc != 0
+        - longhorn_stat.stat.exists
+        - longhorn_stat.stat.isdir | default(false)
+
+    - name: Remove old containerd directory before final mount
       file:
         path: "{{ containerd_dir }}"
         state: absent
-      when: not containerd_stat.stat.islnk | default(false)
+      when: containerd_mountpoint.rc != 0
 
-    - name: Sync longhorn data to new disk
-      shell: rsync -aHAX {{ longhorn_dir }}/ {{ mount_point }}/longhorn/ 2>/dev/null || true
-      when: not containerd_stat.stat.islnk | default(false)
-
-    - name: Remove old fstab entries for storage disk
-      lineinfile:
-        path: /etc/fstab
-        regexp: "{{ storage_disk }}"
-        state: absent
-
-    - name: Add fstab entry — mount disk as /var/lib/containerd
-      lineinfile:
-        path: /etc/fstab
-        line: "LABEL=storage  {{ containerd_dir }}  ext4  defaults,noatime  0  2"
-        state: present
-
-    - name: Create /var/lib/containerd mount point
+    - name: Create containerd final mount point
       file:
         path: "{{ containerd_dir }}"
         state: directory
         mode: '0711'
-      when: not containerd_stat.stat.islnk | default(false)
+      when: containerd_mountpoint.rc != 0
 
-    - name: Unmount temporary mount and remount as /var/lib/containerd
-      shell: |
-        umount {{ mount_point }} || true
-        mount {{ containerd_dir }}
-      when: not containerd_stat.stat.islnk | default(false)
+    - name: Unmount temporary storage disk mount
+      mount:
+        path: "{{ temp_mount_point }}"
+        state: unmounted
+      when: containerd_mountpoint.rc != 0
 
-    - name: Remove old longhorn directory
+    - name: Remove previous containerd fstab entries
+      lineinfile:
+        path: /etc/fstab
+        regexp: '^\S+\s+{{ containerd_dir | regex_escape() }}\s+'
+        state: absent
+
+    - name: Mount storage disk as containerd directory
+      mount:
+        path: "{{ containerd_dir }}"
+        src: "{{ storage_mount_src }}"
+        fstype: "{{ storage_fstype }}"
+        opts: defaults,noatime
+        state: mounted
+
+    - name: Ensure Longhorn data directory exists under containerd mount
+      file:
+        path: "{{ containerd_dir }}/longhorn"
+        state: directory
+        mode: '0711'
+
+    - name: Remove old Longhorn path before bind mount
       file:
         path: "{{ longhorn_dir }}"
         state: absent
-      when: not containerd_stat.stat.islnk | default(false)
+      when: containerd_mountpoint.rc != 0
 
-    - name: Create real directory for longhorn bind mount
+    - name: Create Longhorn bind mount point
       file:
         path: "{{ longhorn_dir }}"
         state: directory
         mode: '0711'
-      when: not containerd_stat.stat.islnk | default(false)
 
-    - name: Add bind mount /var/lib/longhorn → /var/lib/containerd/longhorn
+    - name: Remove previous Longhorn fstab entries
       lineinfile:
         path: /etc/fstab
-        line: "{{ containerd_dir }}/longhorn  {{ longhorn_dir }}  none  bind,x-systemd.requires-mounts-for={{ containerd_dir }}  0  0"
-        state: present
+        regexp: '^\S+\s+{{ longhorn_dir | regex_escape() }}\s+'
+        state: absent
 
-    - name: Mount longhorn bind mount
-      command: mount {{ longhorn_dir }}
-      when: not containerd_stat.stat.islnk | default(false)
+    - name: Bind mount Longhorn data directory
+      mount:
+        path: "{{ longhorn_dir }}"
+        src: "{{ containerd_dir }}/longhorn"
+        fstype: none
+        opts: bind,x-systemd.requires-mounts-for={{ containerd_dir }}
+        state: mounted
 
     - name: Start containerd and kubelet
       systemd:
@@ -157,7 +192,7 @@
         - kubelet
 
     - name: Show disk layout after migration
-      command: df -h {{ containerd_dir }} /
+      command: df -h {{ containerd_dir }} {{ longhorn_dir }} /
       register: df_output
       changed_when: false
 

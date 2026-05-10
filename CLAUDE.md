@@ -73,7 +73,9 @@ platform/bootstrap/argocd/root-app.yaml   ← applied once by bootstrap.sh
   └─ watches: platform/argocd-apps/        ← FLAT directory, no recurse
        ├─ _root.yaml                        ← AppProject "platform" (lists all allowed Helm repos)
        ├─ app-longhorn.yaml     (Longhorn block storage)
+       ├─ app-longhorn-monitoring.yaml
        ├─ app-minio.yaml        (MinIO object storage)
+       ├─ app-registry-secrets.yaml
        ├─ app-vault.yaml
        ├─ app-eso.yaml
        ├─ app-prometheus.yaml
@@ -98,13 +100,13 @@ When using multi-source Applications (`sources:` array), always add the github r
 | ingress-nginx | ingress-nginx | 4.10.1 | |
 | cert-manager | cert-manager | 1.15.1 | ServiceMonitor in `platform/apps/observability/platform-monitoring.yaml` |
 | Argo CD | argocd | 7.3.4 (v2.11) | |
-| kube-prometheus-stack | monitoring | 61.7.1 | ServerSideApply=true required for large CRDs; PDB: maxUnavailable:0 for prometheus + alertmanager |
-| Loki | monitoring | — | SingleBinary mode; read/write/backend replicas: 0; PDB: maxUnavailable:0 (component: single-binary) |
+| kube-prometheus-stack | monitoring | 61.7.1 | ServerSideApply=true required for large CRDs; PDB: maxUnavailable:1 for prometheus + alertmanager |
+| Loki | monitoring | — | SingleBinary mode; read/write/backend replicas: 0; PDB: maxUnavailable:1 (component: single-binary) |
 | Vault | vault | 0.28.0 | 3-replica Raft HA; injector disabled (use ESO); PDB: minAvailable:2 |
 | External Secrets Operator | external-secrets | — | Connects to Vault |
-| Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO; ServiceMonitor + backup alerts in `platform/apps/backup/velero-monitoring.yaml` |
+| Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO; schedules in `platform/apps/backup/schedule.yaml`; node-agent filesystem backup enabled for PVC data |
 | local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
-| **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install; ServiceMonitor + PrometheusRule alerts in longhorn-system |
+| **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd`; `/var/lib/longhorn` is a bind mount; StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); UI Ingress disabled; monitoring is a separate ArgoCD app after Prometheus CRDs |
 | **MinIO** | minio | 5.2.0 | **Deployed ✓** Standalone; 500Gi on longhorn-retain; URL: minio.k8s.va.atmodev.net / minio-console.k8s.va.atmodev.net; bucket setup via ArgoCD PostSync hook (minio-setup-job.yaml) |
 
 ### Node pools
@@ -154,7 +156,7 @@ make vault-bootstrap
 # On a truly fresh cluster this prints new keys and exits — update credentials.env, then re-run.
 # On rebuild with existing credentials.env: unseals all replicas + seeds secrets automatically.
 
-# 8. Deploy MinIO (race condition workaround) + ArgoCD PostSync hook creates buckets automatically
+# 8. Deploy MinIO first-install workaround; ArgoCD PostSync hook creates buckets automatically
 make apply-minio
 ```
 
@@ -203,8 +205,11 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **Longhorn symlink vs bind mount**: `/var/lib/longhorn` MUST be a real directory (bind mount), NOT a symlink. Longhorn instance manager uses hostPath mount which doesn't follow symlinks — replicas fail with "no such file or directory" for engine binary.
 - **Worker root disk pressure**: workers have 18GB root disk. After moving containerd+longhorn to `/dev/sdb`, ~7GB freed on root. DiskPressure evictions can cascade if root disk fills up — watch `df -h /` on workers.
 - **Credentials flow**: `credentials.env` (gitignored) → `make vault-bootstrap` seeds Vault → ESO ExternalSecrets pull into K8s Secrets. `make apply-secrets` is a fallback only (pre-Vault). Never create secrets with `kubectl create secret` directly.
-- **MinIO buckets**: created by `minio-setup-job.yaml` applied via `make apply-minio`. Buckets: `k8s-velero-backup`, `loki`, `thanos`. Job is idempotent (`--ignore-existing`).
+- **Registry credentials**: if `REGISTRY_URL`, `REGISTRY_USERNAME`, and `REGISTRY_PASSWORD` are set in `credentials.env`, `make vault-bootstrap` seeds `secret/platform/registry`; ESO creates `registry-pull-secret` in va-dev/stage/prod.
+- **MinIO buckets**: created by `minio-setup-job.yaml` as an ArgoCD PostSync hook. Buckets: `k8s-velero-backup`, `loki`, `thanos`. Job is idempotent (`--ignore-existing`).
 - **Velero credentials**: ESO ExternalSecret `platform/apps/backup/velero-externalsecret.yaml` templates the AWS credentials file format under key `cloud`.
-- **Prometheus/Alertmanager PDB node drain**: PDBs with `maxUnavailable: 0` block `kubectl drain` on nodes hosting single-replica Prometheus or Alertmanager pods. For planned node maintenance, temporarily delete the PDB or scale replicas to 2 before draining.
+- **Velero storage location**: MinIO is inside this cluster. For disaster recovery from full cluster loss, replicate MinIO data off-cluster or switch Velero to external S3.
+- **Prometheus/Alertmanager PDB node drain**: PDBs allow one unavailable pod. For planned node maintenance, still check `kubectl get pdb -A` before draining.
+- **Admin UIs**: Kubernetes Dashboard is local-only via port-forward in `apps/kubernetes-dashboard`; Longhorn UI Ingress is disabled. Do not reintroduce public admin Ingress without OIDC/VPN allowlisting.
 - **Microservice chart security defaults**: `platform/charts/microservice` chart enforces `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities: drop ALL` by default. Apps needing writable filesystem must mount a tmpfs emptyDir.
 - **NetworkPolicies (app namespaces)**: va-prod, va-stage, va-dev all have default-deny-all + allow-dns + allow-ingress-from-nginx + allow-prometheus-scrape. New microservices must not rely on unrestricted egress — add explicit NetworkPolicy rules for any external dependencies.

@@ -121,7 +121,7 @@ export KUBECONFIG=~/.kube/config-k8s-va
 source credentials.env
 
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault kv put secret/platform/myapp \
     db_password="super-secret-pass" \
@@ -223,7 +223,7 @@ spec:
 # 1. Обновить в Vault (создаёт новую версию)
 source credentials.env
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault kv put secret/platform/myapp \
     db_password="new-secret-pass" \
@@ -367,7 +367,7 @@ dbPassword := data["db_password"].(string)
 ```bash
 source credentials.env
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault policy write myapp-policy - <<'EOF'
 path "secret/data/platform/myapp" {
@@ -382,7 +382,7 @@ EOF
 **2. Создать роль привязанную к Service Account:**
 ```bash
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault write auth/kubernetes/role/myapp-role \
     bound_service_account_names="myapp" \
@@ -441,7 +441,7 @@ source credentials.env
 
 # Алиас для удобства (можно добавить в ~/.zshrc)
 alias vault-exec='kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" vault'
 ```
 
@@ -569,12 +569,12 @@ source credentials.env
 
 # Статус Vault
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   vault status
 
 # Все секреты платформы
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault kv list secret/platform/
 
@@ -606,12 +606,12 @@ make vault-bootstrap
 ```bash
 # 1. Проверить что Vault доступен и не sealed
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault status
+  env VAULT_ADDR=http://127.0.0.1:8200 vault status
 
 # 2. Проверить что секрет существует в Vault
 source credentials.env
 kubectl exec -n vault vault-0 -- \
-  env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+  env VAULT_ADDR=http://127.0.0.1:8200 \
   VAULT_TOKEN="${VAULT_ROOT_TOKEN}" \
   vault kv get secret/platform/<name>
 

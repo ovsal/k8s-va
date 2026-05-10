@@ -246,62 +246,26 @@ watch kubectl get applications -n argocd
 Argo CD задеплоит в следующем порядке:
 1. `namespaces` — va-dev, va-stage, va-prod + RBAC + ResourceQuota
 2. `policies` — NetworkPolicy defaults
-3. `storage` — StorageClasses, nfs-csi (или local-path-provisioner временно)
-4. `secrets` — Vault + External Secrets Operator
-5. `observability` — kube-prometheus-stack + Loki + promtail
-6. `backup` — Velero
+3. `longhorn` — StorageClasses `longhorn` и `longhorn-retain`
+4. `vault` + `external-secrets`
+5. `minio`
+6. `observability` — kube-prometheus-stack + Loki + promtail
+7. `backup` — Velero
+8. `longhorn-monitoring` — ServiceMonitor/PrometheusRule после Prometheus CRDs
 
-> Vault нужно вручную инициализировать и unseal — см. [vault-unseal runbook](runbooks/vault-unseal.md).
+Vault init/unseal/config/secret seeding выполняется через `make vault-bootstrap`.
 
 ---
 
 ## Шаг 7. Инициализация Vault
 
 ```bash
-# Инициализация (один раз, выполнить сразу после того как все vault pods Running)
-kubectl exec -n vault vault-0 -- vault operator init \
-  -key-shares=5 -key-threshold=3 \
-  -format=json > vault-init.json
-
-# ВАЖНО: сохранить vault-init.json в защищённое место (не в git!)
-
-# Unseal на каждой из 3 реплик (нужны любые 3 из 5 ключей)
-for pod in vault-0 vault-1 vault-2; do
-  for i in 0 1 2; do
-    key=$(jq -r ".unseal_keys_b64[$i]" vault-init.json)
-    kubectl exec -n vault $pod -- vault operator unseal $key
-  done
-done
+make vault-bootstrap
 ```
 
-После unseal настроить Vault для ESO:
-```bash
-ROOT_TOKEN=$(jq -r '.root_token' vault-init.json)
-
-# KV v2 secret engine
-kubectl exec -n vault vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN \
-  vault secrets enable -path=secret kv-v2
-
-# Kubernetes auth
-kubectl exec -n vault vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN \
-  vault auth enable kubernetes
-
-kubectl exec -n vault vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN \
-  vault write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc"
-
-# Policy и role для ESO
-kubectl exec -n vault vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN vault policy write eso-policy - <<'EOF'
-path "secret/data/*" { capabilities = ["read","list"] }
-path "secret/metadata/*" { capabilities = ["read","list"] }
-EOF
-
-kubectl exec -n vault vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN \
-  vault write auth/kubernetes/role/external-secrets \
-    bound_service_account_names="external-secrets" \
-    bound_service_account_namespaces="external-secrets" \
-    policies="eso-policy" \
-    ttl="1h"
-```
+На свежем кластере первый запуск напечатает `VAULT_ROOT_TOKEN` и `VAULT_UNSEAL_KEY_*`.
+Сохранить их в `credentials.env` вне git и запустить `make vault-bootstrap` повторно.
+Vault role для ESO: `eso-role`.
 
 ---
 
