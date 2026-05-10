@@ -11,7 +11,6 @@ spec:
     - https://charts.external-secrets.io
     - https://prometheus-community.github.io/helm-charts
     - https://grafana.github.io/helm-charts
-    - https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
     - https://helm.releases.hashicorp.com
     - https://vmware-tanzu.github.io/helm-charts
     - https://charts.longhorn.io
