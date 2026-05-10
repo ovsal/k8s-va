@@ -96,6 +96,9 @@ kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 ```bash
 export VAULT_TOKEN="…"
 
+# Если движок KV ещё не включали:
+vault secrets enable -path=secret kv-v2
+
 vault auth enable kubernetes
 
 vault write auth/kubernetes/config \
