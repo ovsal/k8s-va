@@ -5,7 +5,7 @@ metadata:
   name: loki-pdb
   namespace: monitoring
 spec:
-  maxUnavailable: 0
+  maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: loki

@@ -5,7 +5,7 @@ metadata:
   name: prometheus-pdb
   namespace: monitoring
 spec:
-  maxUnavailable: 0
+  maxUnavailable: 1
   selector:
     matchLabels:
       prometheus: kube-prometheus-stack-prometheus
@@ -16,7 +16,7 @@ metadata:
   name: alertmanager-pdb
   namespace: monitoring
 spec:
-  maxUnavailable: 0
+  maxUnavailable: 1
   selector:
     matchLabels:
       alertmanager: kube-prometheus-stack-alertmanager

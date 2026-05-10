@@ -36,13 +36,13 @@ spec:
             description: "Velero backup for schedule {{ $labels.schedule }} has failures in the last hour"
 
         - alert: VeleroBackupNotSuccessful
-          expr: velero_backup_last_status != 1
+          expr: (time() - velero_backup_last_successful_timestamp) > 86400
           for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "Velero backup schedule {{ $labels.schedule }} last status not successful"
-            description: "Backup schedule {{ $labels.schedule }} last backup did not complete successfully"
+            summary: "Velero backup schedule {{ $labels.schedule }} not successful in 24h"
+            description: "Backup schedule {{ $labels.schedule }} last successful backup was more than 24 hours ago"
 
         - alert: VeleroBackupPartialFailure
           expr: increase(velero_backup_partial_failure_total[1h]) > 0

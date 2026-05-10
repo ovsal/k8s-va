@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "microservice.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.hpa.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "microservice.selectorLabels" . | nindent 6 }}

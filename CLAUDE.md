@@ -96,13 +96,13 @@ When using multi-source Applications (`sources:` array), always add the github r
 |---|---|---|---|
 | MetalLB | metallb-system | 0.14.5 | L2 mode |
 | ingress-nginx | ingress-nginx | 4.10.1 | |
-| cert-manager | cert-manager | 1.15.1 | ServiceMonitor disabled until Prometheus ready |
+| cert-manager | cert-manager | 1.15.1 | ServiceMonitor in `platform/apps/observability/platform-monitoring.yaml` |
 | Argo CD | argocd | 7.3.4 (v2.11) | |
-| kube-prometheus-stack | monitoring | 61.7.1 | ServerSideApply=true required for large CRDs |
-| Loki | monitoring | — | SingleBinary mode; read/write/backend replicas: 0 |
-| Vault | vault | 0.28.0 | 3-replica Raft HA; injector disabled (use ESO) |
+| kube-prometheus-stack | monitoring | 61.7.1 | ServerSideApply=true required for large CRDs; PDB: maxUnavailable:0 for prometheus + alertmanager |
+| Loki | monitoring | — | SingleBinary mode; read/write/backend replicas: 0; PDB: maxUnavailable:0 (component: single-binary) |
+| Vault | vault | 0.28.0 | 3-replica Raft HA; injector disabled (use ESO); PDB: minAvailable:2 |
 | External Secrets Operator | external-secrets | — | Connects to Vault |
-| Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO |
+| Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO; ServiceMonitor + backup alerts in `platform/apps/backup/velero-monitoring.yaml` |
 | local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
 | **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install; ServiceMonitor + PrometheusRule alerts in longhorn-system |
 | **MinIO** | minio | 5.2.0 | **Deployed ✓** Standalone; 500Gi on longhorn-retain; URL: minio.k8s.va.atmodev.net / minio-console.k8s.va.atmodev.net; bucket setup via ArgoCD PostSync hook (minio-setup-job.yaml) |
@@ -205,3 +205,6 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **Credentials flow**: `credentials.env` (gitignored) → `make vault-bootstrap` seeds Vault → ESO ExternalSecrets pull into K8s Secrets. `make apply-secrets` is a fallback only (pre-Vault). Never create secrets with `kubectl create secret` directly.
 - **MinIO buckets**: created by `minio-setup-job.yaml` applied via `make apply-minio`. Buckets: `k8s-velero-backup`, `loki`, `thanos`. Job is idempotent (`--ignore-existing`).
 - **Velero credentials**: ESO ExternalSecret `platform/apps/backup/velero-externalsecret.yaml` templates the AWS credentials file format under key `cloud`.
+- **Prometheus/Alertmanager PDB node drain**: PDBs with `maxUnavailable: 0` block `kubectl drain` on nodes hosting single-replica Prometheus or Alertmanager pods. For planned node maintenance, temporarily delete the PDB or scale replicas to 2 before draining.
+- **Microservice chart security defaults**: `platform/charts/microservice` chart enforces `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities: drop ALL` by default. Apps needing writable filesystem must mount a tmpfs emptyDir.
+- **NetworkPolicies (app namespaces)**: va-prod, va-stage, va-dev all have default-deny-all + allow-dns + allow-ingress-from-nginx + allow-prometheus-scrape. New microservices must not rely on unrestricted egress — add explicit NetworkPolicy rules for any external dependencies.
