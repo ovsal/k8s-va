@@ -72,6 +72,10 @@ lint: ## Lint Ansible playbooks and Helm charts
 	  ansible-playbook --syntax-check playbooks/40-prepare-storage-disk.yaml; \
 	  ansible-playbook --syntax-check playbooks/99-reset.yaml; \
 	else echo "ansible-playbook not installed, skipping syntax-check"; fi
-	@if which helm >/dev/null 2>&1; then helm lint $(PLATFORM_DIR)/charts/microservice/; else echo "helm not installed, skipping helm lint"; fi
+	@if which helm >/dev/null 2>&1; then \
+	  if [ -f "$(PLATFORM_DIR)/charts/microservice/Chart.yaml" ]; then \
+	    helm lint $(PLATFORM_DIR)/charts/microservice/; \
+	  else echo "microservice Helm chart not present, skipping helm lint"; fi; \
+	else echo "helm not installed, skipping helm lint"; fi
 	bash -n $(PLATFORM_DIR)/bootstrap/bootstrap.sh
 	bash -n $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh

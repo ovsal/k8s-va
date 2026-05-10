@@ -10,5 +10,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .venv/
+.ansible/
+cluster/.ansible/
 .claude/
-ansible/inventory/prod/credentials/
+cluster/inventory/prod/credentials/
