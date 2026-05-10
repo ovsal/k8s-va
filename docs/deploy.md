@@ -1,41 +1,55 @@
-# Деплой кластера: пошаговый алгоритм
+# Деплой кластера (актуально)
 
-Инструкция охватывает полный цикл от пустых VM до production-ready кластера с GitOps.
+Эта инструкция описывает **текущий минимальный сценарий**: поднять Kubernetes (Kubespray) и поставить базовые компоненты платформы:
+**MetalLB → ingress-nginx → cert-manager → Argo CD**.
+
+В репозитории **больше нет** шагов/целей для Vault/MinIO/Velero/«сеединга» секретов и прочих компонентов — старые разделы удалены из документа.
+
+---
+
+## Что есть в репозитории
+
+- `cluster/`: inventory и Ansible playbooks для подготовки хостов и Kubespray
+- `platform/bootstrap/`: bootstrap-скрипт и значения Helm для MetalLB/ingress-nginx/cert-manager/Argo CD
+- `Makefile`: команды-обёртки (см. `make help`)
 
 ---
 
 ## Предварительные требования
 
-### Инфраструктура
+### Инфраструктура (пример)
 
 | Роль | Кол-во | CPU | RAM | Диск | ОС |
-|---|---|---|---|---|---|
+|---|---:|---:|---:|---:|---|
 | control-plane | 3 | 4 vCPU | 8 GB | 80 GB SSD | Ubuntu 24.04 LTS |
 | worker | N | 8 vCPU | 16 GB | 100 GB | Ubuntu 24.04 LTS |
 
 ### Сеть
-- L2-сеть между всеми нодами
-- Пул свободных IP ≥ 10 адресов под MetalLB (не пересекается с DHCP)
-- DNS: `*.k8s.va.atmodev.net` → VIP MetalLB (или временно в `/etc/hosts`)
-- API VIP (kube-vip): отдельный свободный IP из той же подсети
+- **L2-сеть** между всеми нодами (MetalLB в L2 режиме)
+- **Пул свободных IP** для MetalLB (не пересекается с DHCP)
+- **API VIP (kube-vip)**: отдельный свободный IP из той же подсети
 
 ### Доступ
 - SSH-ключ с локальной машины → все ноды без пароля (пользователь `ansible`)
 - `sudo NOPASSWD` для пользователя `ansible` на всех нодах
-- Локальная машина имеет выход в интернет (для скачивания образов и helm charts)
+- Локальная машина имеет выход в интернет (скачивание образов/чартов)
 
 ### Инструменты на локальной машине (macOS)
+
 ```bash
-brew install helm kubectl vault ansible
+brew install helm kubectl ansible
 ```
 
-Kubespray v2.30 жёстко проверяет версию ansible-core (`2.17.3 ≤ x < 2.18.0`) и отказывает при 2.18+.
-Создать отдельный venv один раз:
+### Kubespray: submodule и venv
+
+Kubespray (submodule) требует `ansible-core 2.17.x` (и падает на 2.18+). Подготовьте окружение один раз:
+
 ```bash
+git submodule update --init --recursive
+
 cd cluster
 python3 -m venv .venv
 .venv/bin/pip install --quiet ansible==10.7.0 jmespath netaddr cryptography
-# Проверка:
 .venv/bin/ansible-playbook --version | head -1
 # ansible-playbook [core 2.17.x]
 ```
@@ -44,279 +58,124 @@ python3 -m venv .venv
 
 ## Шаг 0. Настройка конфигурации
 
-Перед запуском заменить все плейсхолдеры (`ЗАМЕНИТЬ`) в репозитории.
+Перед запуском замените плейсхолдеры `ЗАМЕНИТЬ` в репозитории.
 
-### 0.1 IP-адреса нод
+### 0.1 Инвентори: IP и доступ к нодам
 
-Файл `cluster/inventory/prod/hosts.yaml`:
-```yaml
-cp-1:
-  ansible_host: <CP1_IP>      # IP control-plane 1
-  ansible_user: ansible
-cp-2:
-  ansible_host: <CP2_IP>
-  ansible_user: ansible
-cp-3:
-  ansible_host: <CP3_IP>
-  ansible_user: ansible
-worker-1:
-  ansible_host: <WORKER1_IP>
-  ansible_user: ansible
-# ... остальные воркеры
-```
+Файл `cluster/inventory/prod/hosts.yaml` — укажите IP и пользователя `ansible`.
 
-### 0.2 kube-vip и API VIP
+### 0.2 kube-vip: API VIP
 
 Файл `cluster/inventory/prod/group_vars/all/vars.yml`:
-```yaml
-loadbalancer_apiserver:
-  address: "<API_VIP>"   # свободный IP в подсети нод
-  port: 6443
-kube_vip_address: "<API_VIP>"
-kube_vip_interface: "eth0"   # сетевой интерфейс нод (уточнить: eth0, ens3, enp3s0)
-```
+- `loadbalancer_apiserver.address`
+- `kube_vip_address`
+- `kube_vip_interface` (например, `eth0`/`ens3` — по факту на ваших VM)
 
-### 0.3 Пул IP для MetalLB
+### 0.3 MetalLB: пул IP
 
 Файл `platform/bootstrap/metallb/resources.yaml`:
-```yaml
-addresses:
-  - <METALLB_START>-<METALLB_END>   # напр. 192.168.1.200-192.168.1.220
-```
+- в `spec.addresses` замените диапазон (комментарий `# ЗАМЕНИТЬ на METALLB_POOL`)
 
-### 0.4 cert-manager: Let's Encrypt
+### 0.4 cert-manager (опционально): Let's Encrypt email
 
 Файл `platform/bootstrap/cert-manager/cluster-issuers.yaml`:
-- Заменить `ops@company.com` на реальный email (уведомления об истечении сертификатов)
+- замените `email: ... # ЗАМЕНИТЬ`
 
-Требования к домену:
-- DNS `*.k8s.va.atmodev.net` должен резолвиться в публичный IP ingress-nginx до запуска bootstrap
-- Порт 80 на этом IP должен быть доступен из интернета (Let's Encrypt HTTP-01 challenge)
-
-### 0.5 Argo CD: git-репозиторий
-
-Файл `platform/bootstrap/argocd/root-app.yaml`:
-```yaml
-repoURL: https://<GIT_HOST>/<ORG>/k8s-platform.git
-```
-
-### 0.6 Container registry (опционально)
-
-Файл `cluster/inventory/prod/group_vars/all/containerd.yml`:
-```yaml
-containerd_registries_mirrors:
-  "registry.company.com":
-    - "https://registry.company.com"
-```
-
-### 0.7 Инициализация git submodule (Kubespray)
-
-```bash
-git submodule update --init --recursive
-```
+Примечание: issuers создаются всегда, но **сертификаты начнут выпускаться только когда** вы создадите Ingress/Certificate и обеспечите доступность HTTP-01 (порт 80 через ingress-nginx).
 
 ---
 
 ## Шаг 1. Подготовка хостов
 
-Playbook настраивает: kernel modules, sysctl, containerd, chrony (NTP).
-
 ```bash
 make host-prep
 ```
 
-**Или напрямую:**
-```bash
-cd cluster && ansible-playbook -i inventory/prod/hosts.yaml playbooks/00-host-prep.yaml
-```
-
-**Проверка:**
-```bash
-cd cluster
-ansible all -i inventory/prod/hosts.yaml -m shell -a "systemctl is-active containerd"
-# Ожидается: active на всех нодах
-
-ansible all -i inventory/prod/hosts.yaml -m shell -a "chronyc tracking | grep 'Leap status'"
-# Ожидается: Normal
-```
+Что делает: отключает swap, настраивает sysctl/kernel modules, ставит/запускает containerd и т.п. (см. `cluster/playbooks/00-host-prep.yaml`).
 
 ---
 
 ## Шаг 2. Bootstrap кластера (Kubespray)
 
-Kubespray запускает kubeadm на всех нодах, поднимает etcd (stacked), настраивает Calico CNI.
-
-> **Требование к версии ansible**: Kubespray v2.30 проверяет `2.17.3 ≤ ansible-core < 2.18.0` и завершается с ошибкой при других версиях. Необходимо использовать venv.
-
-> **Ubuntu 24.04**: `unattended-upgrades` стартует сразу после загрузки VM и может заблокировать apt во время bootstrap. Kubespray отключит его автоматически — `ubuntu_stop_unattended_upgrades: true` уже задан в inventory.
-
 ```bash
 make bootstrap
 ```
 
-**Или напрямую из `cluster/`:**
-```bash
-cd cluster && .venv/bin/ansible-playbook -b -i inventory/prod/hosts.yaml playbooks/10-kubespray.yaml
-```
-
-> Время выполнения: ~20–40 минут в зависимости от скорости сети (скачивание образов).
-
-**Проверка по окончании:**
-```bash
-# На любом control-plane
-ssh ansible@<CP1_IP>
-sudo kubectl get nodes -o wide
-# Ожидается: 3 control-plane + N workers в статусе Ready
-
-sudo ETCDCTL_API=3 etcdctl \
-  --endpoints=https://127.0.0.1:2379 \
-  --cacert=/etc/ssl/etcd/ssl/ca.pem \
-  --cert=/etc/ssl/etcd/ssl/node-cp-1.pem \
-  --key=/etc/ssl/etcd/ssl/node-cp-1-key.pem \
-  endpoint health --cluster
-# Ожидается: 3/3 healthy
-```
-
 ---
 
-## Шаг 3. Post-bootstrap
-
-Скачивает kubeconfig на локальную машину, заменяет адрес cp-1 на kube-vip VIP.
+## Шаг 3. Post-bootstrap (kubeconfig на локальную машину)
 
 ```bash
 make post-bootstrap
 ```
 
-После выполнения:
-```bash
-export KUBECONFIG=~/.kube/config-k8s-va
-kubectl get nodes
-```
+Результат:
+- kubeconfig сохраняется в `~/.kube/config-k8s-va`
+- в kubeconfig **подменяется адрес API** на VIP из `loadbalancer_apiserver.address`
+- в `~/.zshrc` добавляется `export KUBECONFIG=...`
 
----
-
-## Шаг 4. Bootstrap платформенных компонентов (pre-Argo CD)
-
-Устанавливает в правильном порядке: MetalLB → ingress-nginx → cert-manager → Argo CD.
+Проверка:
 
 ```bash
-export KUBECONFIG=~/.kube/config-k8s-va
-make bootstrap-platform
-```
-
-Скрипт идемпотентен — можно запускать повторно.
-В конце выводит пароль admin для Argo CD UI.
-
-**Проверки:**
-```bash
-# MetalLB: LoadBalancer получил IP
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-# EXTERNAL-IP должен быть из пула MetalLB
-
-# cert-manager: поды running
-kubectl get pods -n cert-manager
-kubectl get clusterissuers
-# Ожидается: letsencrypt-staging и letsencrypt-prod в Ready=True
-```
-
----
-
-## Шаг 5. Подключение git-репозитория к Argo CD
-
-Если репозиторий приватный — добавить SSH-ключ или token.
-
-```bash
-argocd login <ARGOCD_VIP> --username admin --password <PASSWORD> --insecure
-
-# HTTPS token
-argocd repo add https://<GIT_HOST>/<ORG>/k8s-platform.git \
-  --username <USER> --password <TOKEN>
-```
-
----
-
-## Шаг 6. Запуск App-of-Apps (GitOps-переход)
-
-Root-application уже применена скриптом bootstrap. Argo CD начинает синхронизацию платформенных сервисов автоматически.
-
-```bash
-watch kubectl get applications -n argocd
-```
-
-Argo CD задеплоит в следующем порядке:
-1. `namespaces` — va-dev, va-stage, va-prod + RBAC + ResourceQuota
-2. `policies` — NetworkPolicy defaults
-3. `longhorn` — StorageClasses `longhorn` и `longhorn-retain`
-4. `vault` + `external-secrets`
-5. `minio`
-6. `observability` — kube-prometheus-stack + Loki + promtail
-7. `backup` — Velero
-8. `longhorn-monitoring` — ServiceMonitor/PrometheusRule после Prometheus CRDs
-
-Vault init/unseal/config/secret seeding выполняется через `make vault-bootstrap`.
-
----
-
-## Шаг 7. Инициализация Vault
-
-```bash
-make vault-bootstrap
-```
-
-На свежем кластере первый запуск напечатает `VAULT_ROOT_TOKEN` и `VAULT_UNSEAL_KEY_*`.
-Сохранить их в `credentials.env` вне git и запустить `make vault-bootstrap` повторно.
-Vault role для ESO: `eso-role`.
-
----
-
-## Итоговая проверка
-
-```bash
-# Все ноды Ready
 kubectl get nodes -o wide
-
-# Нет проблемных подов
-kubectl get pods -A | grep -v Running | grep -v Completed
-
-# Все Argo CD Applications Synced/Healthy
-kubectl get applications -n argocd
-
-# MetalLB: LoadBalancer IP выдаётся
-kubectl get svc -A | grep LoadBalancer
-
-# Vault unsealed
-kubectl -n vault exec vault-0 -- vault status | grep Sealed
-# Sealed: false
 ```
 
 ---
 
-## Быстрый старт (все шаги одной цепочкой)
+## Шаг 4. Bootstrap базовых компонентов платформы
+
+Скрипт `platform/bootstrap/bootstrap.sh` устанавливает в правильном порядке:
+**MetalLB → ingress-nginx → cert-manager → Argo CD** и печатает пароль admin.
 
 ```bash
-export KUBECONFIG=~/.kube/config-k8s-va
-
-# 1. Подготовка нод
-make host-prep
-
-# 2. Bootstrap кластера (venv обязателен — Kubespray требует ansible-core 2.17.x)
-make bootstrap
-
-# 3. Получить kubeconfig
-make post-bootstrap
-
-# 4. Платформа до Argo CD
 make bootstrap-platform
+```
 
-# Дальше следить через:
-watch kubectl get applications -n argocd
+Проверки:
+
+```bash
+# ingress-nginx должен получить EXTERNAL-IP из пула MetalLB
+kubectl -n ingress-nginx get svc ingress-nginx-controller
+
+# cert-manager должен быть Running
+kubectl -n cert-manager get pods
+kubectl get clusterissuers
+
+# Argo CD должен быть Running
+kubectl -n argocd get pods
 ```
 
 ---
 
-## Отмена / сброс кластера
+## (Опционально) GitOps через Argo CD
+
+Скрипт bootstrap применяет `platform/bootstrap/argocd/root-app.yaml`.
+Сейчас он указывает `spec.source.path: platform/argocd-apps`.
+
+Если вы хотите включить GitOps:
+- создайте каталог `platform/argocd-apps` с `Application` манифестами (App-of-Apps) **или**
+- измените `root-app.yaml` на актуальный `repoURL/path/targetRevision`.
+
+В текущем состоянии репозитория уже добавлены GitOps приложения для storage:
+- `platform/argocd-apps/storage/longhorn/application.yaml`
+- `platform/argocd-apps/storage/local-path/application.yaml`
+- `platform/argocd-apps/storage/smoke/storage-smoke.yaml` (smoke-тест PVC/POD)
+
+---
+
+## Быстрый старт
+
+```bash
+make host-prep
+make bootstrap
+make post-bootstrap
+make bootstrap-platform
+```
+
+---
+
+## Сброс кластера (DESTRUCTIVE)
 
 ```bash
 make reset
-# Запрашивает подтверждение (5 сек). Уничтожает кластер на всех нодах.
 ```

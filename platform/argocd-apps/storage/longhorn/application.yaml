@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storage-longhorn
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: 1.11.2
+    helm:
+      values: |
+        persistence:
+          defaultClass: false
+          defaultClassReplicaCount: 2
+        defaultSettings:
+          defaultDataPath: /storage/longhorn
+          # Разрешать создание реплик на той же ноде нельзя: иначе при 2 нодах можно получить обе реплики на одной.
+          replicaSoftAntiAffinity: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+

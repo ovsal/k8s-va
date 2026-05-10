@@ -110,3 +110,25 @@
     name: chronyd
     enabled: true
     state: started
+
+# --- Подготовка локального диска под storage ---
+#
+# На worker-нодах диск /dev/sdb примонтирован в /storage.
+# Для выбранной storage-схемы (Longhorn + локальный storage class)
+# создаём подкаталоги, чтобы данные разных подсистем не смешивались.
+
+- name: Check if /storage exists
+  stat:
+    path: /storage
+  register: storage_dir
+  changed_when: false
+
+- name: Ensure /storage subdirectories exist for PV data
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /storage/longhorn
+    - /storage/local
+  when: storage_dir.stat.exists and storage_dir.stat.isdir
