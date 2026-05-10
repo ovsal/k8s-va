@@ -86,6 +86,8 @@ kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 Основной способ выдачи секретов в Kubernetes — **External Secrets Operator (ESO)** (см. `docs/external-secrets.md`):
 - Vault (KV v2, `secret/`) → ESO → Kubernetes `Secret`
 
+Пошагово для новых приложений (манифесты `ExternalSecret`, шаблоны, `dataFrom`, проверки): **`docs/external-secrets.md`**.
+
 #### Kubernetes auth + ESO (операционная настройка)
 
 В GitOps лежит только RBAC, чтобы Vault мог валидировать JWT Kubernetes:
