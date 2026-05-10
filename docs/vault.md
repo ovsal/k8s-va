@@ -83,9 +83,8 @@ kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 
 #### Как приложению получить секреты
 
-На следующем шаге мы добавим:
-- Kubernetes auth method в Vault
-- (опционально) External Secrets Operator, чтобы синхронизировать секреты в Kubernetes Secret
+Основной способ выдачи секретов в Kubernetes — **External Secrets Operator (ESO)** (см. `docs/external-secrets.md`):
+- Vault (KV v2, `secret/`) → ESO → Kubernetes `Secret`
 
 До этого момента Vault используется вручную (CLI/UI) для создания секретов и проверки доступа.
 
