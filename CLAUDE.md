@@ -72,7 +72,6 @@ Kubernetes 1.34.3 · Calico CNI (VXLAN, `interface=eth0`) · IPVS kube-proxy · 
 platform/bootstrap/argocd/root-app.yaml   ← applied once by bootstrap.sh
   └─ watches: platform/argocd-apps/        ← FLAT directory, no recurse
        ├─ _root.yaml                        ← AppProject "platform" (lists all allowed Helm repos)
-       ├─ app-storage.yaml      (nfs-csi)
        ├─ app-longhorn.yaml     (Longhorn block storage)
        ├─ app-minio.yaml        (MinIO object storage)
        ├─ app-vault.yaml
@@ -105,8 +104,8 @@ When using multi-source Applications (`sources:` array), always add the github r
 | External Secrets Operator | external-secrets | — | Connects to Vault |
 | Velero | velero | — | Requires `velero-credentials` secret; S3 backend → MinIO |
 | local-path-provisioner | kube-system | v0.0.30 | Fallback for small ephemeral PVCs |
-| **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install |
-| **MinIO** | minio | 5.2.0 | **Deployed ✓** Standalone; 500Gi on longhorn-retain; URL: minio.k8s.va.atmodev.net / minio-console.k8s.va.atmodev.net; deploy via `make apply-minio` (ArgoCD race condition with post-job workaround) |
+| **Longhorn** | longhorn-system | 1.7.2 | **Deployed ✓** Replicated block storage; `/dev/sdb` on each worker → `/var/lib/containerd` (symlink `/var/lib/longhorn`); StorageClasses: `longhorn` (Delete) and `longhorn-retain` (Retain); `preUpgradeChecker.jobEnabled: false` required for ArgoCD fresh install; ServiceMonitor + PrometheusRule alerts in longhorn-system |
+| **MinIO** | minio | 5.2.0 | **Deployed ✓** Standalone; 500Gi on longhorn-retain; URL: minio.k8s.va.atmodev.net / minio-console.k8s.va.atmodev.net; bucket setup via ArgoCD PostSync hook (minio-setup-job.yaml) |
 
 ### Node pools
 
@@ -155,7 +154,7 @@ make vault-bootstrap
 # On a truly fresh cluster this prints new keys and exits — update credentials.env, then re-run.
 # On rebuild with existing credentials.env: unseals all replicas + seeds secrets automatically.
 
-# 8. Deploy MinIO (race condition workaround) + create buckets
+# 8. Deploy MinIO (race condition workaround) + ArgoCD PostSync hook creates buckets automatically
 make apply-minio
 ```
 
@@ -196,6 +195,7 @@ Domain pattern: `*.k8s.va.atmodev.net`. cert-manager uses Let's Encrypt HTTP-01 
 - **ArgoCD AppProject sourceRepos**: Every Helm chart repo used in child Applications must be listed in `platform/argocd-apps/_root.yaml` under `sourceRepos`.
 - **Loki SingleBinary**: When `deploymentMode: SingleBinary`, must set `read.replicas: 0`, `write.replicas: 0`, `backend.replicas: 0` or chart validation fails.
 - **Credentials**: `cluster/inventory/prod/credentials/` is gitignored. Vault init JSON must never be committed.
+- **Vault TLS**: `tls_disable = 1` in vault HCL — Vault serves plain HTTP on port 8200 internally. `vault-bootstrap.sh` and ESO ClusterSecretStore both use `http://`. External access is HTTPS via ingress + cert-manager only.
 - **Ubuntu 24.04 + apt race**: `unattended-upgrades` starts immediately after VM boot and holds `/var/lib/apt/extended_states`, causing `apt-mark mkstemp EACCES` during Kubespray bootstrap. Fixed via `ubuntu_stop_unattended_upgrades: true` in `kubespray-all.yml` — Kubespray stops it before any apt operations.
 - **Makefile INVENTORY**: path is relative to `cluster/` (where all targets cd before running ansible). If overriding: `make host-prep INVENTORY=inventory/prod/hosts.yaml`, not the full `cluster/inventory/...` path.
 - **Longhorn + ArgoCD fresh install**: `preUpgradeChecker.jobEnabled: false` MUST be set in longhorn-values.yaml, otherwise the pre-upgrade Helm hook blocks deployment (service account doesn't exist yet on first install).
