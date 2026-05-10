@@ -20,7 +20,7 @@ spec:
       targetRevision: main
       path: platform/apps/observability
       directory:
-        include: 'grafana-externalsecret.yaml'
+        include: '{grafana-externalsecret.yaml,platform-monitoring.yaml,prometheus-pdb.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

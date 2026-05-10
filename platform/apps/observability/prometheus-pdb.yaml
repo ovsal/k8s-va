@@ -1,0 +1,24 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: prometheus-pdb
+  namespace: monitoring
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+      operator.prometheus.io/name: kube-prometheus-stack-prometheus
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: alertmanager-pdb
+  namespace: monitoring
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+      operator.prometheus.io/name: kube-prometheus-stack-alertmanager
