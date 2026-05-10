@@ -5,6 +5,8 @@ kind: ServiceMonitor
 metadata:
   name: cert-manager
   namespace: cert-manager
+  labels:
+    release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
@@ -21,6 +23,8 @@ kind: ServiceMonitor
 metadata:
   name: argocd-application-controller
   namespace: argocd
+  labels:
+    release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
@@ -36,6 +40,8 @@ kind: ServiceMonitor
 metadata:
   name: argocd-server
   namespace: argocd
+  labels:
+    release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
@@ -56,8 +62,8 @@ spec:
     - name: argocd
       rules:
         - alert: ArgoCDAppNotSynced
-          expr: argocd_app_info{sync_status!="Synced"} == 1
-          for: 15m
+          expr: argocd_app_info{sync_status!="Synced"} > 0
+          for: 10m
           labels:
             severity: warning
           annotations:
@@ -65,8 +71,8 @@ spec:
             description: "App {{ $labels.name }} in project {{ $labels.project }} has sync status: {{ $labels.sync_status }}"
 
         - alert: ArgoCDAppUnhealthy
-          expr: argocd_app_info{health_status!="Healthy"} == 1
-          for: 15m
+          expr: argocd_app_info{health_status!="Healthy"} > 0
+          for: 10m
           labels:
             severity: warning
           annotations:
@@ -95,7 +101,7 @@ spec:
 
         - alert: CertManagerCertNotReady
           expr: certmanager_certificate_ready_status{condition="False"} == 1
-          for: 10m
+          for: 5m
           labels:
             severity: critical
           annotations:
