@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap prepare-storage reset bootstrap-platform label-nodes vault-bootstrap apply-minio apply-secrets lint
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -18,11 +18,6 @@ bootstrap: ## Bootstrap k8s cluster via Kubespray (requires cluster/.venv with a
 post-bootstrap: ## Fetch kubeconfig, install CLI tools on bastion
 	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/20-post-bootstrap.yaml
 
-prepare-storage: ## Format /dev/sdb, move containerd+longhorn onto it (frees root disk on workers)
-	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/40-prepare-storage-disk.yaml
-
-label-nodes: ## Apply node labels and taints from host_vars (idempotent)
-	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/30-node-labels.yaml
 
 reset: ## DESTRUCTIVE: reset the cluster
 	@echo "WARNING: This will destroy the cluster. Press Ctrl+C to abort."
@@ -32,50 +27,4 @@ reset: ## DESTRUCTIVE: reset the cluster
 bootstrap-platform: ## Install pre-ArgoCD components + Argo CD
 	bash $(PLATFORM_DIR)/bootstrap/bootstrap.sh
 
-vault-bootstrap: ## Init/unseal Vault + configure K8s auth + ESO role + seed all secrets from credentials.env
-	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
-	bash $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh
 
-apply-minio: ## Deploy MinIO via helm template (workaround: ArgoCD race condition with chart post-job on first deploy). Bucket creation handled by ArgoCD PostSync hook.
-	@export KUBECONFIG=$(KUBECONFIG_PATH); \
-	helm template minio minio/minio --version 5.2.0 --namespace minio \
-	  --values $(PLATFORM_DIR)/apps/storage/minio-values.yaml 2>/dev/null | \
-	kubectl apply -n minio -f -
-
-apply-secrets: ## Apply all credentials from credentials.env to the cluster as K8s Secrets
-	@test -f credentials.env || { echo "ERROR: credentials.env not found"; exit 1; }
-	@set -a; . ./credentials.env; set +a; \
-	export KUBECONFIG=$(KUBECONFIG_PATH); \
-	kubectl create namespace minio --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl create namespace velero --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl create secret generic minio-credentials -n minio \
-	  --from-literal=rootUser="$$MINIO_ROOT_USER" \
-	  --from-literal=rootPassword="$$MINIO_ROOT_PASSWORD" \
-	  --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl create secret generic velero-credentials -n velero \
-	  --from-literal=cloud="[default]\naws_access_key_id=$$VELERO_ACCESS_KEY\naws_secret_access_key=$$VELERO_SECRET_KEY" \
-	  --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl create secret generic grafana-admin -n monitoring \
-	  --from-literal=admin-user="admin" \
-	  --from-literal=admin-password="$$GRAFANA_ADMIN_PASSWORD" \
-	  --dry-run=client -o yaml | kubectl apply -f -; \
-	echo "Secrets applied."
-
-lint: ## Lint Ansible playbooks and Helm charts
-	@if which ansible-lint >/dev/null 2>&1; then cd $(CLUSTER_DIR) && ansible-lint playbooks/; else echo "ansible-lint not installed, skipping"; fi
-	@if which ansible-playbook >/dev/null 2>&1; then \
-	  mkdir -p $(CLUSTER_DIR)/.ansible/tmp $(CLUSTER_DIR)/.ansible/facts_cache; \
-	  cd $(CLUSTER_DIR) && ansible-playbook --syntax-check playbooks/00-host-prep.yaml; \
-	  ansible-playbook --syntax-check playbooks/20-post-bootstrap.yaml; \
-	  ansible-playbook --syntax-check playbooks/30-node-labels.yaml; \
-	  ansible-playbook --syntax-check playbooks/40-prepare-storage-disk.yaml; \
-	  ansible-playbook --syntax-check playbooks/99-reset.yaml; \
-	else echo "ansible-playbook not installed, skipping syntax-check"; fi
-	@if which helm >/dev/null 2>&1; then \
-	  if [ -f "$(PLATFORM_DIR)/charts/microservice/Chart.yaml" ]; then \
-	    helm lint $(PLATFORM_DIR)/charts/microservice/; \
-	  else echo "microservice Helm chart not present, skipping helm lint"; fi; \
-	else echo "helm not installed, skipping helm lint"; fi
-	bash -n $(PLATFORM_DIR)/bootstrap/bootstrap.sh
-	bash -n $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh
