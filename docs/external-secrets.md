@@ -54,8 +54,8 @@ flowchart LR
 | Job установки CRD (server-side apply) | `platform/argocd-apps/secrets/external-secrets-crds/job.yaml` (подхватывается `root-app` вместе с остальными манифестами в `platform/argocd-apps`) |
 | Общий store для Vault | `platform/argocd-apps/secrets/secret-stores/vault-clustersecretstore.yaml` |
 | Argo `Application`, который синкает только store | `platform/argocd-apps/secrets/secret-stores-app/application.yaml` |
-| Пример `ExternalSecret` | `platform/argocd-apps/secrets/external-secrets-samples/argocd-example.yaml` |
-| Argo `Application` для примеров | `platform/argocd-apps/secrets/external-secrets-samples-app/application.yaml` |
+
+Манифест **`ExternalSecret`** для каждого сервиса добавляется **в каталог этого приложения** (см. раздел ниже), отдельного demo-приложения в репозитории нет.
 
 Namespace оператора: **`external-secrets`**. Chart: **`external-secrets/external-secrets`**, версия **2.4.1**.
 
@@ -94,7 +94,7 @@ vault kv put secret/platform/<сервис> \
 
 - Манифест кладите рядом с приложением (например `platform/argocd-apps/<каталог-приложения>/externalsecret.yaml`) **или** в отдельном `Application`, которое указывает на каталог с манифестами — главное, чтобы Argo CD этот путь синхронизировал.
 - **`namespace`**: тот же, где будут Deployment и целевой `Secret`.
-- **`secretStoreRef`**: для общего сценария — `name: vault`, `kind: ClusterSecretStore` (как в примере ниже).
+- **`secretStoreRef`**: для общего сценария — `name: vault`, `kind: ClusterSecretStore` (как в шаблоне ниже).
 - **`target.name`**: имя создаваемого Kubernetes `Secret` (часто совпадает с именем `ExternalSecret` или с именем, ожидаемым Helm chart).
 - **`data`**: список соответствий `secretKey` (ключ в Kubernetes `Secret`) → `remoteRef.key` (путь в Vault относительно mount `secret`) + `property` (имя поля в KV).
 
@@ -120,8 +120,6 @@ spec:
         key: platform/<сервис>
         property: <поле-в-vault-kv>
 ```
-
-Рабочий пример в репозитории: `platform/argocd-apps/secrets/external-secrets-samples/argocd-example.yaml` (namespace `argocd`, путь `platform/example`, поле `demo`).
 
 **Забрать все пары ключ–значение** из одного пути KV можно через `dataFrom` (удобно, когда набор полей часто меняется):
 

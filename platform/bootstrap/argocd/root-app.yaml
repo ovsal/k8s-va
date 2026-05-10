@@ -14,7 +14,7 @@ spec:
     path: platform/argocd-apps
     directory:
       recurse: true
-      exclude: '{secrets/secret-stores/**,secrets/external-secrets-samples/**}'
+      exclude: '{secrets/secret-stores/**}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

@@ -124,7 +124,7 @@ vault write auth/kubernetes/role/eso-role \
   ttl=1h
 ```
 
-Пример секрета для демо ESO: `vault kv put secret/platform/example demo=my-value`.
+Проверка KV из CLI: `vault kv put secret/platform/<сервис> <ключ>=<значение>` (см. также `docs/external-secrets.md`).
 
 Для ручной проверки доступа без ESO используйте UI/CLI Vault.
 
