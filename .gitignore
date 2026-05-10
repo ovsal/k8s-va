@@ -14,3 +14,5 @@ __pycache__/
 cluster/.ansible/
 .claude/
 cluster/inventory/prod/credentials/
+.agents/
+.github/
