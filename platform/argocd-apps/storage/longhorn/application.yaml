@@ -11,6 +11,9 @@ spec:
     targetRevision: 1.11.2
     helm:
       values: |
+        preUpgradeChecker:
+          # Longhorn рекомендует отключать pre-upgrade job при установке через Argo CD/GitOps.
+          jobEnabled: false
         persistence:
           defaultClass: false
           defaultClassReplicaCount: 2
