@@ -1,0 +1,12 @@
+# Metrics Server: API metrics.k8s.io для kubectl top и HPA по CPU/memory.
+# На кластерах с самоподписанными kubelet-сертификатами (типично Kubespray) нужен insecure TLS.
+
+args:
+  - --kubelet-insecure-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+replicas: 1

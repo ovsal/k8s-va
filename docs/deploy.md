@@ -1,6 +1,6 @@
 # Деплой кластера (актуально)
 
-Эта инструкция описывает **текущий сценарий**: поднять Kubernetes (Kubespray), затем **bootstrap-скрипт** (MetalLB → ingress-nginx → cert-manager → **Longhorn** → **Vault** → Argo CD), затем **`make vault-bootstrap`** для Vault (KV, Kubernetes auth для ESO), и дальше GitOps через Argo CD для остальных компонентов, включая **наблюдаемость** (`docs/observability.md`; Grafana без Vault — см. **`make grafana-admin-secret`**).
+Эта инструкция описывает **текущий сценарий**: поднять Kubernetes (Kubespray), затем **bootstrap-скрипт** (MetalLB → ingress-nginx → cert-manager → **Longhorn** → **Vault** → Argo CD), затем **`make vault-bootstrap`** для Vault (KV, Kubernetes auth для ESO), и дальше GitOps через Argo CD для остальных компонентов, включая **metrics-server** (`docs/metrics-server.md`), **наблюдаемость** (`docs/observability.md`; Grafana без Vault — см. **`make grafana-admin-secret`**).
 
 В репозитории **больше нет** шагов/целей для MinIO/Velero и т.п. — старые разделы удалены.
 

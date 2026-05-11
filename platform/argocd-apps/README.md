@@ -8,4 +8,6 @@
 
 Каталог **`observability/`**: Prometheus/Grafana/Loki/Promtail (Helm через `sources` + `ref: values` для values из Git), namespace — см. **`docs/observability.md`** (Grafana: Secret админа в кластере, без Vault).
 
+Каталог **`system/metrics-server/`**: API `metrics.k8s.io` для `kubectl top` и HPA — см. **`docs/metrics-server.md`**.
+
 Порядок для ESO: `external-secrets-namespace.yaml` (sync-wave **-2**) создаёт namespace до Job/SA CRD (wave **-1**); иначе `CreateNamespace` у root-app не помогает — он относится только к `spec.destination` приложения (`argocd`).
