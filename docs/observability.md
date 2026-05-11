@@ -48,6 +48,16 @@
 - Чарт **promtail** помечен deprecated в репозитории Grafana; при появлении замены можно сменить источник в `application.yaml`.
 - **Alertmanager** и правила из kube-prometheus включены по умолчанию; при необходимости настройте receivers в Helm values или отдельными манифестами.
 
+### После удаления namespace `observability`
+
+1. Снова создайте Secret админа Grafana: **`make grafana-admin-secret`** (namespace создастся скриптом при необходимости).
+2. Если Argo приложение **`observability-metrics`** зависло в **`Running`** с текстом **`waiting for healthy state of … obs-metrics-grafana`**, а Deployment Grafana в кластере нет: это известный сбой синка (часто после prune + удаления ns). Выполните:
+   ```bash
+   kubectl patch application observability-metrics -n argocd --type=json -p='[{"op":"remove","path":"/operation"}]'
+   kubectl -n argocd annotate application observability-metrics argocd.argoproj.io/refresh=hard --overwrite
+   ```
+   В манифесте приложения включён **`PruneLast`**, чтобы prune не мешал появлению рабочих нагрузок.
+
 ## См. также
 
 - `docs/vault.md` — Vault как платформа (без обязательной связки с Grafana).
