@@ -13,7 +13,8 @@ VAULT_PUBLIC_ISSUER="${VAULT_PUBLIC_ISSUER:-https://vault.k8s.va.atmodev.net}"
 GRAFANA_PUBLIC_URL="${GRAFANA_PUBLIC_URL:-https://grafana.k8s.va.atmodev.net}"
 
 vr() {
-  kubectl exec -n vault "${VAULT_POD}" -- \
+  # -i: иначе stdin (heredoc, policy write -) не доходит до vault в контейнере.
+  kubectl exec -i -n vault "${VAULT_POD}" -- \
     env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="${VAULT_ROOT_TOKEN}" vault "$@"
 }
 
