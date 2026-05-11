@@ -101,7 +101,8 @@ grafana:
     GF_AUTH_GENERIC_OAUTH_NAME: Vault
     GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
     GF_AUTH_GENERIC_OAUTH_USE_PKCE: "false"
-    GF_AUTH_GENERIC_OAUTH_SCOPES: openid user groups
+    # Запрашиваем только кастомные scopes Vault (openid в Vault зарезервирован / встроен).
+    GF_AUTH_GENERIC_OAUTH_SCOPES: user groups
     GF_AUTH_GENERIC_OAUTH_EMPTY_SCOPES: "false"
     GF_AUTH_GENERIC_OAUTH_AUTH_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/authorize
     GF_AUTH_GENERIC_OAUTH_TOKEN_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/token

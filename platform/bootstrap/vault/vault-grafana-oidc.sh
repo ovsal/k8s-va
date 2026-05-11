@@ -92,18 +92,17 @@ vr write identity/oidc/client/grafana \
 CID=$(vr read -field=client_id identity/oidc/client/grafana)
 SECRET=$(vr read -field=client_secret identity/oidc/client/grafana)
 
-T_OPENID='{"sub":{{identity.entity.id}}}'
+# Имя scope «openid» в Vault зарезервировано — не создаём кастомный scope; в scopes_supported провайдера указываем только user и groups.
 T_USER='{"email":{{identity.entity.metadata.email}},"email_verified":true,"name":{{identity.entity.name}},"preferred_username":{{identity.entity.name}}}'
 T_GROUPS='{"groups":{{identity.entity.groups.names}}}'
 
-vr write identity/oidc/scope/openid description="OpenID Connect" template="$(b64_scope_template "${T_OPENID}")"
 vr write identity/oidc/scope/user description="Профиль для Grafana" template="$(b64_scope_template "${T_USER}")"
 vr write identity/oidc/scope/groups description="Группы grafana-admins" template="$(b64_scope_template "${T_GROUPS}")"
 
 vr write identity/oidc/provider/grafana \
   issuer="${VAULT_PUBLIC_ISSUER}" \
   allowed_client_ids="${CID}" \
-  scopes_supported=openid,user,groups
+  scopes_supported=user,groups
 
 vr kv put secret/platform/grafana-oidc client_id="${CID}" client_secret="${SECRET}"
 
