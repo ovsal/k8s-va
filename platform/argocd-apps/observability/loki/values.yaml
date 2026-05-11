@@ -16,7 +16,7 @@ singleBinary:
   persistence:
     enabled: true
     storageClass: longhorn-ha
-    size: 20Gi
+    size: 80Gi
   resources:
     requests:
       cpu: 200m

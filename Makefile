@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform vault-bootstrap grafana-admin-secret
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform vault-bootstrap grafana-admin-secret longhorn-ui-basic-auth
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -32,3 +32,6 @@ vault-bootstrap: ## Init/unseal Vault + Kubernetes auth + роль ESO (посл
 
 grafana-admin-secret: ## Secret админа Grafana в observability (без Vault; см. docs/observability.md)
 	bash $(PLATFORM_DIR)/bootstrap/observability/grafana-admin-secret.sh
+
+longhorn-ui-basic-auth: ## Secret Basic Auth для Ingress Longhorn UI (см. docs/longhorn.md)
+	bash $(PLATFORM_DIR)/bootstrap/longhorn/longhorn-ui-basic-auth-secret.sh
