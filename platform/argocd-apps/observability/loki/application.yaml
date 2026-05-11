@@ -21,6 +21,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
+  # Шаблон PVC в StatefulSet после создания менять нельзя — при смене size в values Argo
+  # иначе бессмысленно гоняется с live-объектом. Реальное расширение диска — patch PVC (см. docs/observability.md).
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: loki
+      jsonPointers:
+        - /spec/volumeClaimTemplates
   syncPolicy:
     automated:
       prune: true
