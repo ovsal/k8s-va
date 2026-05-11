@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform vault-bootstrap
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform vault-bootstrap grafana-admin-secret
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -29,3 +29,6 @@ bootstrap-platform: ## Install pre-ArgoCD components + Longhorn + Vault + Argo C
 
 vault-bootstrap: ## Init/unseal Vault + Kubernetes auth + роль ESO (после bootstrap-platform)
 	bash $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh
+
+grafana-admin-secret: ## Secret админа Grafana в observability (без Vault; см. docs/observability.md)
+	bash $(PLATFORM_DIR)/bootstrap/observability/grafana-admin-secret.sh

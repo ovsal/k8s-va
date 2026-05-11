@@ -6,6 +6,7 @@
 # (сохраните credentials.env по шаблону platform/bootstrap/vault/credentials.env.example и выполните снова).
 #
 # Второй и далее: unseal всех реплик, KV v2, Kubernetes auth, политика и роль для ESO.
+# Grafana в кластере настраивается без Vault (см. docs/observability.md, make grafana-admin-secret).
 #
 # Использование: make vault-bootstrap  (или bash platform/bootstrap/vault/vault-bootstrap.sh)
 set -euo pipefail
@@ -59,7 +60,7 @@ unseal_pod() {
   fi
 }
 
-echo "==> [1/6] Ожидание подов Vault (до 5 мин)..."
+echo "==> [1/5] Ожидание подов Vault (до 5 мин)..."
 # Не используем condition=Ready: пока Vault sealed, readiness не проходит (0/1), а init/unseal как раз дальше.
 WAIT_DEADLINE=$((SECONDS + 300))
 while (( SECONDS < WAIT_DEADLINE )); do
@@ -90,7 +91,7 @@ if (( SECONDS >= WAIT_DEADLINE )); then
   exit 1
 fi
 
-echo "==> [2/6] Проверка инициализации..."
+echo "==> [2/5] Проверка инициализации..."
 INITIALIZED=$(vault_status_json_in_pod "${VAULT_POD}" \
   | python3 -c "import sys,json; print(json.load(sys.stdin).get('initialized', False))" \
   2>/dev/null || echo "False")
@@ -116,11 +117,7 @@ for i, k in enumerate(d["unseal_keys_b64"], 1):
 PYEOF
   rm -f "${TMP}"
   echo ""
-  echo "Подсказка: пока нет второго запуска vault-bootstrap, Argo CD может показывать ошибку"
-  echo "ExternalSecret grafana-vault-oauth (нет ключа в KV). Либо выполните make vault-bootstrap"
-  echo "после credentials.env, либо один раз положите плейсхолдер root-токеном:"
-  echo "  kubectl -n vault exec secrets-vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=<root> \\"
-  echo "    vault kv put secret/platform/grafana-oidc client_id=pending client_secret=pending"
+  echo "Подсказка: после сохранения credentials.env снова выполните make vault-bootstrap."
   echo ""
   exit 11
 fi
@@ -142,13 +139,13 @@ set +a
   exit 1
 }
 
-echo "==> [3/6] Unseal всех реплик server..."
+echo "==> [3/5] Unseal всех реплик server..."
 while read -r pod; do
   [[ -n "${pod}" ]] || continue
   unseal_pod "${pod}"
 done < <(kubectl get pods -n vault -l "${VAULT_SERVER_LABEL}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
 
-echo "==> [4/6] KV v2 на secret/ и Kubernetes auth + роль ESO..."
+echo "==> [4/5] KV v2 на secret/ и Kubernetes auth + роль ESO..."
 vr secrets enable -path=secret kv-v2 2>/dev/null && echo "    KV включён" || echo "    KV уже есть (ok)"
 
 vr auth enable kubernetes 2>/dev/null && echo "    auth/kubernetes включён" || echo "    auth/kubernetes уже есть (ok)"
@@ -178,17 +175,5 @@ vr write auth/kubernetes/role/eso-role \
 
 echo "    Kubernetes auth и роль eso-role настроены (SA secrets-external-secrets)"
 
-# Плейсхолдер в KV, чтобы ExternalSecret в Argo не падал до создания OIDC (тот же путь перезапишется).
-echo "    KV secret/platform/grafana-oidc для ESO (плейсхолдер при отсутствии)..."
-if ! vr kv get secret/platform/grafana-oidc >/dev/null 2>&1; then
-  vr kv put secret/platform/grafana-oidc client_id=pending client_secret=pending
-  echo "    Записано pending; после шага OIDC будут реальные client_id/client_secret."
-fi
-
-echo "==> [5/6] OIDC Vault для Grafana (секреты в KV для ESO)..."
-export VAULT_PUBLIC_ISSUER="${VAULT_PUBLIC_ISSUER:-https://vault.k8s.va.atmodev.net}"
-export GRAFANA_PUBLIC_URL="${GRAFANA_PUBLIC_URL:-https://grafana.k8s.va.atmodev.net}"
-bash "${SCRIPT_DIR}/vault-grafana-oidc.sh"
-
-echo "==> [6/6] Готово."
-echo "    Дальше: синк Argo CD (ESO, observability). Логин Grafana: кнопка Vault → userpass grafana-oidc-user (см. docs/observability.md)."
+echo "==> [5/5] Готово."
+echo "    Дальше: синк Argo CD (ESO для других приложений). Grafana: см. docs/observability.md и make grafana-admin-secret."

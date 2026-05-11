@@ -35,15 +35,18 @@ Vault **не** управляется Argo CD: он ставится **скри�
 **Первый запуск** (пустой storage после `make bootstrap-platform`):
 
 1. Скрипт выполняет `vault operator init`, печатает **root token** и **unseal keys** и завершается с кодом **11**.
-2. Скопируйте вывод в файл **`credentials.env`** в **корне репозитория** (файл в `.gitignore`). Опционально задайте **`GRAFANA_VAULT_USERPASS_PASSWORD`** (пароль userpass для входа в Vault при логине Grafana через OIDC).
+2. Скопируйте вывод в файл **`credentials.env`** в **корне репозитория** (файл в `.gitignore`).
 3. Снова выполните: **`make vault-bootstrap`**
 
 **Второй и последующие запуски** (при наличии `credentials.env`):
 
 - распечатывает все реплики server;
 - включает **KV v2** на `secret/`;
-- настраивает **`auth/kubernetes`**, политику **`eso-policy`**, роль **`eso-role`** для SA **`secrets-external-secrets`** (namespace `external-secrets`);
-- один раз создаёт **OIDC-провайдер Vault для Grafana** (`platform/bootstrap/vault/vault-grafana-oidc.sh`): userpass-пользователь **`grafana-oidc-user`**, группа **`grafana-admins`**, запись **`secret/platform/grafana-oidc`** для ESO (подробнее: **`docs/observability.md`**).
+- настраивает **`auth/kubernetes`**, политику **`eso-policy`**, роль **`eso-role`** для SA **`secrets-external-secrets`** (namespace `external-secrets`).
+
+**Grafana** в этом репозитории **не** настраивается через Vault: вход и пароль администратора — Kubernetes Secret, см. **`docs/observability.md`** и **`make grafana-admin-secret`**.
+
+Если отдельно нужен **OIDC Vault для Grafana** (userpass, KV `secret/platform/grafana-oidc`, интеграция с ESO), скрипт остаётся в репозитории: **`bash platform/bootstrap/vault/vault-grafana-oidc.sh`** (после успешного `vault-bootstrap` и с рабочим `VAULT_ROOT_TOKEN`).
 
 Argo CD после этого синхронизирует **ESO** и приложения из Git — они начнут работать, когда Vault распечатан и настроен.
 
@@ -75,7 +78,7 @@ kubectl -n vault exec -it secrets-vault-0 -- sh -lc 'export VAULT_TOKEN="…"; v
 #### Базовое соглашение по путям (рекомендация)
 
 На старте удобно придерживаться единого нейминга:
-- `secret/platform/<service>` — платформенные секреты (Grafana, registry, etc)
+- `secret/platform/<service>` — платформенные секреты (registry, общие ключи и т.д.)
 - `secret/apps/<app>/<env>` — секреты приложений по окружениям
 
 #### Как приложению получить секреты

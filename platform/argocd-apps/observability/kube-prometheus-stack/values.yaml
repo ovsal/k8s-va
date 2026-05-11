@@ -1,5 +1,5 @@
 # kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, правила.
-# Ingress Grafana + Generic OAuth → Vault OIDC (секрет grafana-vault-oauth из ExternalSecret, wave -1).
+# Grafana: вход через форму логина; учётка admin из Secret grafana-admin-credentials (см. make grafana-admin-secret).
 
 kubeControllerManager:
   enabled: false
@@ -66,6 +66,10 @@ alertmanager:
               storage: 2Gi
 
 grafana:
+  admin:
+    existingSecret: grafana-admin-credentials
+    userKey: admin-user
+    passwordKey: admin-password
   nodeSelector:
     storage.enabled: "true"
   persistence:
@@ -99,27 +103,6 @@ grafana:
         maxLines: 1000
   env:
     GF_SERVER_ROOT_URL: https://grafana.k8s.va.atmodev.net
-    GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
-    GF_AUTH_GENERIC_OAUTH_NAME: Vault
-    GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
-    GF_AUTH_GENERIC_OAUTH_USE_PKCE: "false"
-    # Запрашиваем только кастомные scopes Vault (openid в Vault зарезервирован / встроен).
-    GF_AUTH_GENERIC_OAUTH_SCOPES: user groups
-    GF_AUTH_GENERIC_OAUTH_EMPTY_SCOPES: "false"
-    GF_AUTH_GENERIC_OAUTH_AUTH_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/authorize
-    GF_AUTH_GENERIC_OAUTH_TOKEN_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/token
-    GF_AUTH_GENERIC_OAUTH_API_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/userinfo
-    GF_AUTH_GENERIC_OAUTH_SIGNOUT_REDIRECT_URL: https://vault.k8s.va.atmodev.net/ui/vault/logout
-    GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'"
-  envValueFrom:
-    GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
-      secretKeyRef:
-        name: grafana-vault-oauth
-        key: client_id
-    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
-      secretKeyRef:
-        name: grafana-vault-oauth
-        key: client_secret
   grafana.ini:
     server:
       root_url: https://grafana.k8s.va.atmodev.net/
@@ -131,6 +114,6 @@ grafana:
     users:
       allow_sign_up: false
     auth:
-      disable_login_form: true
+      disable_login_form: false
     auth.anonymous:
       enabled: false
