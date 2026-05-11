@@ -10,68 +10,64 @@ Vault — центральное хранилище секретов для кл
 
 ### Как деплоится
 
-Vault разворачивается **строго через Argo CD** (GitOps):
-- Argo CD Application: `platform/argocd-apps/secrets/vault/application.yaml`
-- Namespace: `vault`
-- Helm chart: `hashicorp/vault` версии `0.32.0`
+Vault **не** управляется Argo CD: он ставится **скриптом** `platform/bootstrap/bootstrap.sh` (Helm) **до** установки Argo CD, чтобы у stateful-платформы был стабильный порядок: Longhorn → PVC → Vault → GitOps.
+
+- **Helm**: `hashicorp/vault`, chart версии **0.32.0**, релиз **`secrets-vault`**, namespace **`vault`**
+- **Values (как код)**: `platform/bootstrap/vault/values.yaml`
+- **Ingress UI**: `platform/bootstrap/vault/ingress-ui.yaml` (применяется `kubectl apply` из bootstrap)
+- **RBAC для Kubernetes auth**: `platform/bootstrap/vault/kubernetes-auth-delegator.yaml`
 
 Режим работы:
-- **HA + integrated storage (raft)**: сейчас 2 реплики (пока 2 worker-ноды); при добавлении `worker-3+` увеличим до 3
+- **HA + integrated storage (raft)**: сейчас 2 реплики (пока 2 worker-ноды); при добавлении `worker-3+` увеличить в `values.yaml`
 - Данные: PVC на `StorageClass` **`longhorn-ha`**
 
-Доступ снаружи (для администрирования/UI):
-- Ingress: `platform/argocd-apps/secrets/vault/ingress-ui.yaml`
+Доступ снаружи (UI/API):
 - hostname: `vault.k8s.va.atmodev.net`
 - TLS: `cert-manager` (`ClusterIssuer` = `letsencrypt-prod`)
 
 Требования к DNS:
-- `vault.k8s.va.atmodev.net` должен указывать на внешний IP ingress-nginx (см. `kubectl -n ingress-nginx get svc ingress-nginx-controller`).
+- `vault.k8s.va.atmodev.net` должен указывать на внешний IP ingress-nginx.
 
-### Init / Unseal (ручная процедура)
+### Init / Unseal / Kubernetes auth + ESO (операционно)
 
-Важно:
-- **kubectl apply/helm install не используем** — только GitOps.
-- Но `init/unseal` — это операционная процедура Vault и выполняется вручную.
-- Root token и unseal keys нужно хранить **вне кластера** (в защищённом месте).
+Автоматизировано скриптом **`platform/bootstrap/vault/vault-bootstrap.sh`** (также: `make vault-bootstrap`).
 
-#### 1) Проверить, что поды Vault поднялись
+**Первый запуск** (пустой storage после `make bootstrap-platform`):
 
-```bash
-kubectl -n vault get pods -o wide
-```
+1. Скрипт выполняет `vault operator init`, печатает **root token** и **unseal keys** и завершается с кодом **11**.
+2. Скопируйте вывод в файл **`credentials.env`** в **корне репозитория** (файл в `.gitignore`). Шаблон: `platform/bootstrap/vault/credentials.env.example`.
+3. Снова выполните: **`make vault-bootstrap`**
 
-#### 2) Инициализация (один раз)
+**Второй и последующие запуски** (при наличии `credentials.env`):
 
-Запускать только на одной реплике (например, `secrets-vault-0`):
+- распечатывает все реплики server;
+- включает **KV v2** на `secret/`;
+- настраивает **`auth/kubernetes`**, политику **`eso-policy`**, роль **`eso-role`** для SA **`secrets-external-secrets`** (namespace `external-secrets`).
 
-```bash
-kubectl -n vault exec -it secrets-vault-0 -- vault operator init
-```
+Argo CD после этого синхронизирует **ESO** и **`ClusterSecretStore`** из Git — они начнут работать, когда Vault распечатан и настроен.
 
-Сохраните выведенные:
-- `Initial Root Token`
-- `Unseal Key 1..N`
+Root token и unseal keys храните **вне кластера** (не коммитьте в Git).
 
-#### 3) Unseal всех реплик
+#### Ручной режим (альтернатива скрипту)
 
-На каждой реплике применить threshold-кол-во ключей (обычно 3):
-
-```bash
-kubectl -n vault exec -it secrets-vault-0 -- vault operator unseal
-kubectl -n vault exec -it secrets-vault-1 -- vault operator unseal
-```
-
-#### 4) Проверка raft кластера
+Если нужно только проверить статус или сделать шаг вручную — на реплике `secrets-vault-0`:
 
 ```bash
 kubectl -n vault exec -it secrets-vault-0 -- vault status
-kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
+kubectl -n vault exec -it secrets-vault-0 -- vault operator init   # только если ещё не инициализирован
+kubectl -n vault exec -it secrets-vault-0 -- vault operator unseal
 ```
 
-Ожидаемо:
+Список пиров raft (нужен root token в окружении пода):
+
+```bash
+kubectl -n vault exec -it secrets-vault-0 -- sh -lc 'export VAULT_TOKEN="…"; vault operator raft list-peers'
+```
+
+Ожидаемо после полной настройки:
 - `Initialized: true`
 - `Sealed: false`
-- peers = 2 (сейчас) или 3 (когда добавим третью реплику)
+- peers = 2 (сейчас) или больше при масштабировании
 
 ### Как использовать (для других систем)
 
@@ -88,43 +84,24 @@ kubectl -n vault exec -it secrets-vault-0 -- vault operator raft list-peers
 
 Пошагово для новых приложений (манифесты `ExternalSecret`, шаблоны, `dataFrom`, проверки): **`docs/external-secrets.md`**.
 
-#### Kubernetes auth + ESO (операционная настройка)
+#### Kubernetes auth + ESO (дублирование вручную)
 
-В GitOps лежит только RBAC, чтобы Vault мог валидировать JWT Kubernetes:
-- `platform/argocd-apps/secrets/vault/kubernetes-auth-delegator.yaml` — `ClusterRoleBinding` на `system:auth-delegator` для SA `secrets-vault`.
+Обычно всё уже сделано **`make vault-bootstrap`**. Если поднимаете второй кластер или восстанавливаете конфиг вручную, те же шаги, что выполняет скрипт:
 
-Дальше **один раз** из пода `secrets-vault-0` (с действующим root token):
+В репозитории лежит RBAC для TokenReview:
+- `platform/bootstrap/vault/kubernetes-auth-delegator.yaml`
+
+Команды Vault (из пода `secrets-vault-0`, с `VAULT_TOKEN`):
 
 ```bash
 export VAULT_TOKEN="…"
-
-# Если движок KV ещё не включали:
-vault secrets enable -path=secret kv-v2
-
-vault auth enable kubernetes
-
+vault secrets enable -path=secret kv-v2 2>/dev/null || true
+vault auth enable kubernetes 2>/dev/null || true
 vault write auth/kubernetes/config \
   kubernetes_host="https://kubernetes.default.svc:443" \
   kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
   token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token
-
-vault policy write eso-policy - <<'EOF'
-path "secret/data/platform/*" {
-  capabilities = ["read"]
-}
-path "secret/metadata/platform/*" {
-  capabilities = ["list", "read"]
-}
-EOF
-
-vault write auth/kubernetes/role/eso-role \
-  bound_service_account_names=secrets-external-secrets \
-  bound_service_account_namespaces=external-secrets \
-  policies=eso-policy \
-  ttl=1h
+# далее policy eso-policy и роль eso-role — см. platform/bootstrap/vault/vault-bootstrap.sh
 ```
 
-Проверка KV из CLI: `vault kv put secret/platform/<сервис> <ключ>=<значение>` (см. также `docs/external-secrets.md`).
-
-Для ручной проверки доступа без ESO используйте UI/CLI Vault.
-
+Проверка KV из CLI: `vault kv put secret/platform/<сервис> <ключ>=<значение>` (см. `docs/external-secrets.md`).

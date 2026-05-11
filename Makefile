@@ -4,7 +4,7 @@ CLUSTER_DIR     := cluster
 PLATFORM_DIR    := platform
 KUBECONFIG_PATH := ~/.kube/config-k8s-va
 
-.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform
+.PHONY: help host-prep bootstrap post-bootstrap reset bootstrap-platform vault-bootstrap
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "%-25s %s\n",$$1,$$2}'
@@ -24,7 +24,8 @@ reset: ## DESTRUCTIVE: reset the cluster
 	@sleep 5
 	cd $(CLUSTER_DIR) && ansible-playbook -i $(INVENTORY) playbooks/99-reset.yaml
 
-bootstrap-platform: ## Install pre-ArgoCD components + Argo CD
+bootstrap-platform: ## Install pre-ArgoCD components + Longhorn + Vault + Argo CD
 	bash $(PLATFORM_DIR)/bootstrap/bootstrap.sh
 
-
+vault-bootstrap: ## Init/unseal Vault + Kubernetes auth + роль ESO (после bootstrap-platform)
+	bash $(PLATFORM_DIR)/bootstrap/vault/vault-bootstrap.sh

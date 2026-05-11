@@ -11,15 +11,20 @@ Longhorn — распределённое блочное хранилище (CSI
 
 ### Как деплоится
 
-Longhorn разворачивается через Argo CD (App-of-Apps):
-- Argo CD Application: `platform/argocd-apps/storage/longhorn/application.yaml`
-- Namespace: `longhorn-system`
-- Helm chart: `longhorn/longhorn` версии `1.11.2`
+Longhorn ставится **скриптом** `platform/bootstrap/bootstrap.sh` (Helm) **до** Argo CD — так у Vault и других stateful-сервисов есть StorageClass и CSI до GitOps.
 
-Важные настройки, которые у нас включены:
-- **dataPath**: Longhorn хранит данные на воркерах в `**/storage/longhorn**`
-- **репликация по умолчанию для default-класса чарта**: `defaultClassReplicaCount: 2`, при этом **default StorageClass выключен** (`persistence.defaultClass: false`)
-- **GitOps-особенность**: отключён `preUpgradeChecker.jobEnabled` (иначе установка может блокироваться hook-job’ой при GitOps)
+- **Values (как код)**: `platform/bootstrap/longhorn/values.yaml`
+- **StorageClass `longhorn-ha`**: `platform/bootstrap/longhorn/storageclass-longhorn-ha.yaml`
+- **Ingress UI**: `platform/bootstrap/longhorn/ingress-ui.yaml`
+- Namespace: **`longhorn-system`**
+- Helm chart: **`longhorn/longhorn`** версии **`1.11.2`**
+
+Важные настройки:
+- **dataPath**: на воркерах **`/storage/longhorn`**
+- **репликация**: `defaultClassReplicaCount: 2`, **default StorageClass выключен** (`persistence.defaultClass: false`)
+- **`preUpgradeChecker.jobEnabled: false`** — чтобы не блокировать установку hook-job (актуально и для Helm из bootstrap)
+
+Подготовка директорий на нодах: `cluster/roles/host-prep/tasks/system.yml` — `/storage/longhorn` при наличии `/storage`.
 
 Подготовка директорий на нодах выполняется `host-prep`:
 - `cluster/roles/host-prep/tasks/system.yml` создаёт `/storage/longhorn` (если существует `/storage`)
@@ -30,7 +35,7 @@ Longhorn разворачивается через Argo CD (App-of-Apps):
 
 В кластере есть несколько StorageClass от Longhorn, но для приложений мы используем **явно заданный**:
 - **`longhorn-ha`** — основной класс для HA томов (2 реплики)
-  - манифест: `platform/argocd-apps/storage/longhorn/storageclass-longhorn-ha.yaml`
+  - манифест: `platform/bootstrap/longhorn/storageclass-longhorn-ha.yaml`
 
 Дополнительно чарт Longhorn создаёт свои служебные классы (`longhorn`, `longhorn-static`). Их можно использовать, но в этой репе целевой класс для приложений — **`longhorn-ha`**.
 
@@ -73,10 +78,10 @@ Longhorn предоставляет UI для управления хранил�
 
 #### Как деплоится
 
-UI разворачивается **вместе с Longhorn** (через Argo CD приложение `storage-longhorn`).
+UI ставится **вместе с Longhorn** из bootstrap (тот же Helm-релиз).
 
-Для доступа снаружи кластера используется Ingress:
-- манифест: `platform/argocd-apps/storage/longhorn/ingress-ui.yaml`
+Для доступа снаружи:
+- манифест: `platform/bootstrap/longhorn/ingress-ui.yaml`
 - ingress class: `nginx` (ingress-nginx)
 - TLS: cert-manager, `ClusterIssuer` = `letsencrypt-prod`
 - hostname: `longhorn.k8s.va.atmodev.net`

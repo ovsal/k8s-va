@@ -8,6 +8,5 @@ reclaimPolicy: Delete
 volumeBindingMode: Immediate
 parameters:
   numberOfReplicas: "2"
-  staleReplicaTimeout: "2880" # 48 часов
+  staleReplicaTimeout: "2880"
   fsType: "ext4"
-

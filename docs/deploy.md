@@ -1,18 +1,17 @@
 # Деплой кластера (актуально)
 
-Эта инструкция описывает **текущий минимальный сценарий**: поднять Kubernetes (Kubespray) и поставить базовые компоненты платформы:
-**MetalLB → ingress-nginx → cert-manager → Argo CD**.
+Эта инструкция описывает **текущий сценарий**: поднять Kubernetes (Kubespray), затем **bootstrap-скрипт** (MetalLB → ingress-nginx → cert-manager → **Longhorn** → **Vault** → Argo CD), затем **`make vault-bootstrap`** для Vault, и дальше GitOps через Argo CD для остальных компонентов.
 
-В репозитории **больше нет** шагов/целей для MinIO/Velero/«сеединга» секретов и прочих компонентов — старые разделы удалены из документа.
+В репозитории **больше нет** шагов/целей для MinIO/Velero и т.п. — старые разделы удалены.
 
-Vault теперь поднимается отдельно через Argo CD (см. `docs/vault.md`).
+**Longhorn и Vault** не управляются Argo CD: они в **`platform/bootstrap/bootstrap.sh`** и values в `platform/bootstrap/longhorn/` и `platform/bootstrap/vault/`. Подробности: `docs/longhorn.md`, `docs/vault.md`.
 
 ---
 
 ## Что есть в репозитории
 
 - `cluster/`: inventory и Ansible playbooks для подготовки хостов и Kubespray
-- `platform/bootstrap/`: bootstrap-скрипт и значения Helm для MetalLB/ingress-nginx/cert-manager/Argo CD
+- `platform/bootstrap/`: скрипт и Helm values для MetalLB, ingress-nginx, cert-manager, **Longhorn**, **Vault**, Argo CD; скрипт `vault/vault-bootstrap.sh`
 - `Makefile`: команды-обёртки (см. `make help`)
 
 ---
@@ -126,42 +125,41 @@ kubectl get nodes -o wide
 
 ## Шаг 4. Bootstrap базовых компонентов платформы
 
-Скрипт `platform/bootstrap/bootstrap.sh` устанавливает в правильном порядке:
-**MetalLB → ingress-nginx → cert-manager → Argo CD** и печатает пароль admin.
+Скрипт `platform/bootstrap/bootstrap.sh` устанавливает в порядке:
+
+**MetalLB → ingress-nginx → cert-manager → Longhorn → Vault → Argo CD** (+ применяет `root-app`).
+
+В конце вызывается **`vault/vault-bootstrap.sh`**: при **первом** запуске на пустом Vault он выведет **root token и unseal keys** и завершится с кодом 11 — сохраните их в **`credentials.env`** в корне репозитория (шаблон: `platform/bootstrap/vault/credentials.env.example`), затем выполните **`make vault-bootstrap`** ещё раз (unseal + Kubernetes auth + роль для ESO).
 
 ```bash
 make bootstrap-platform
+# при необходимости после сохранения credentials.env:
+make vault-bootstrap
 ```
 
 Проверки:
 
 ```bash
-# ingress-nginx должен получить EXTERNAL-IP из пула MetalLB
 kubectl -n ingress-nginx get svc ingress-nginx-controller
-
-# cert-manager должен быть Running
 kubectl -n cert-manager get pods
 kubectl get clusterissuers
-
-# Argo CD должен быть Running
+kubectl -n longhorn-system get pods
+kubectl -n vault get pods
 kubectl -n argocd get pods
 ```
 
+Пароль **Argo CD admin** скрипт выводит в конце (secret `argocd-initial-admin-secret`).
+
 ---
 
-## (Опционально) GitOps через Argo CD
+## GitOps через Argo CD
 
-Скрипт bootstrap применяет `platform/bootstrap/argocd/root-app.yaml`.
-Сейчас он указывает `spec.source.path: platform/argocd-apps`.
+Bootstrap применяет `platform/bootstrap/argocd/root-app.yaml` с путём `platform/argocd-apps` (рекурсивно). Там остаются, например:
 
-Если вы хотите включить GitOps:
-- создайте каталог `platform/argocd-apps` с `Application` манифестами (App-of-Apps) **или**
-- измените `root-app.yaml` на актуальный `repoURL/path/targetRevision`.
+- `storage/local-path` — локальный StorageClass;
+- `secrets/external-secrets`, `secrets/secret-stores` — ESO и `ClusterSecretStore` для Vault.
 
-В текущем состоянии репозитория уже добавлены GitOps приложения для storage:
-- `platform/argocd-apps/storage/longhorn/application.yaml`
-- `platform/argocd-apps/storage/local-path/application.yaml`
-- `platform/argocd-apps/storage/smoke/storage-smoke.yaml` (smoke-тест PVC/POD)
+**Longhorn и Vault в Argo CD не входят** — они только из bootstrap.
 
 ---
 
@@ -172,6 +170,7 @@ make host-prep
 make bootstrap
 make post-bootstrap
 make bootstrap-platform
+make vault-bootstrap   # второй раз после заполнения credentials.env, если bootstrap выдал init
 ```
 
 ---

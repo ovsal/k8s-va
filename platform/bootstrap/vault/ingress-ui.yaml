@@ -21,9 +21,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                # Для HA Vault сервис обычно создаётся как <release>-active.
-                # Если имя отличается, поправим после первой синхронизации Argo CD.
                 name: secrets-vault-active
                 port:
                   number: 8200
-

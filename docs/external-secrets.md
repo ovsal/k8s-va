@@ -15,7 +15,7 @@ ESO синхронизирует секреты из внешнего храни
 1. В Git лежат манифесты: `ClusterSecretStore` (как подключаться к Vault) и `ExternalSecret` (что именно забрать и во что положить).
 2. **Argo CD** применяет их в кластер.
 3. Контроллер ESO (namespace `external-secrets`) читает `ExternalSecret`, берёт для Vault **краткоживущий JWT** сервисного аккаунта `secrets-external-secrets` и логинится в Vault через **`auth/kubernetes`** и роль **`eso-role`**.
-4. Vault проверяет JWT через Kubernetes API (для этого у подов Vault выдан `ClusterRoleBinding` на `system:auth-delegator`, см. `platform/argocd-apps/secrets/vault/kubernetes-auth-delegator.yaml`).
+4. Vault проверяет JWT через Kubernetes API (для подов Vault выдан `ClusterRoleBinding` на `system:auth-delegator`, см. `platform/bootstrap/vault/kubernetes-auth-delegator.yaml`).
 5. После логина к Vault применяется политика **`eso-policy`**: разрешено читать только ветку **`secret/data/platform/*`** (и метаданные для list).
 6. ESO забирает данные из **KV v2** (`mount` = `secret`, версия `v2`) и создаёт/обновляет целевой **`Secret`** в namespace приложения.
 
@@ -65,7 +65,7 @@ Namespace оператора: **`external-secrets`**. Chart: **`external-secrets
 - **Kubernetes auth** на **`auth/kubernetes`**, роль **`eso-role`** привязана к SA **`secrets-external-secrets`** в **`external-secrets`**.
 - **`ClusterSecretStore` `vault`**: сервер `http://secrets-vault-active.vault.svc:8200`, `path: secret`, `version: v2`, `mountPath` для логина: `kubernetes`.
 
-Операционная первоначальная настройка Vault (политика, роль, включение движков) описана в **`docs/vault.md`** — в Git кладём только RBAC для TokenReview и манифесты ESO/store/`ExternalSecret`.
+Операционная первоначальная настройка Vault (KV, политика, роль для ESO) выполняется **`make vault-bootstrap`** (см. **`docs/vault.md`**). RBAC TokenReview для подов Vault лежит в **`platform/bootstrap/vault/kubernetes-auth-delegator.yaml`** и применяется из **`bootstrap.sh`**. В Git (Argo CD) остаются оператор ESO, `ClusterSecretStore` и манифесты **`ExternalSecret`**.
 
 ### Соглашения по путям в Vault (KV v2)
 

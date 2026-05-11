@@ -1,0 +1,9 @@
+# Значения Helm для Longhorn (раньше в Argo CD Application storage-longhorn).
+preUpgradeChecker:
+  jobEnabled: false
+persistence:
+  defaultClass: false
+  defaultClassReplicaCount: 2
+defaultSettings:
+  defaultDataPath: /storage/longhorn
+  replicaSoftAntiAffinity: false
