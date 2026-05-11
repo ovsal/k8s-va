@@ -43,6 +43,21 @@
 - Чарт **promtail** помечен deprecated в репозитории Grafana; при появлении замены можно сменить источник в `application.yaml`.
 - **Alertmanager** и правила из kube-prometheus включены по умолчанию; при необходимости настройте receivers в Helm values или отдельными манифестами.
 
+### Если Argo CD / root-app в Degraded из‑за ExternalSecret `grafana-vault-oauth`
+
+Сообщение ESO вроде: **Secret does not exist** для пути **`platform/grafana-oidc`** в Vault.
+
+Причина: в KV ещё нет записи, пока не выполнен **`make vault-bootstrap`** с рабочим `credentials.env` (после первого init — второй запуск). Скрипт сам кладёт **плейсхолдер** `pending`, затем шаг OIDC заменяет на реальные `client_id` / `client_secret`.
+
+Срочно без повторного bootstrap (нужен **root token**):
+
+```bash
+kubectl -n vault exec secrets-vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN="<root>" \
+  vault kv put secret/platform/grafana-oidc client_id=pending client_secret=pending
+```
+
+После появления ключа в KV подождите reconcile ESO или сделайте refresh приложения **root-app** в Argo CD.
+
 ## См. также
 
 - `docs/vault.md` — общий поток Vault и `vault-bootstrap`.

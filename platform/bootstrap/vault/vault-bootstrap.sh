@@ -103,7 +103,7 @@ if [[ "${INITIALIZED}" != "True" ]]; then
   echo ""
   echo "╔════════════════════════════════════════════════════════════════════╗"
   echo "║  VAULT ИНИЦИАЛИЗИРОВАН — сохраните значения вне кластера            ║"
-  echo "║  Скопируйте в credentials.env в корне репо (см. docs/vault.md)                    ║"
+  echo "║  Скопируйте в credentials.env в корне репо (см. docs/vault.md)      ║"
   echo "║  Затем снова: make vault-bootstrap                                  ║"
   echo "╚════════════════════════════════════════════════════════════════════╝"
   python3 - "${TMP}" <<'PYEOF'
@@ -115,6 +115,12 @@ for i, k in enumerate(d["unseal_keys_b64"], 1):
     print(f'VAULT_UNSEAL_KEY_{i}="{k}"')
 PYEOF
   rm -f "${TMP}"
+  echo ""
+  echo "Подсказка: пока нет второго запуска vault-bootstrap, Argo CD может показывать ошибку"
+  echo "ExternalSecret grafana-vault-oauth (нет ключа в KV). Либо выполните make vault-bootstrap"
+  echo "после credentials.env, либо один раз положите плейсхолдер root-токеном:"
+  echo "  kubectl -n vault exec secrets-vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=<root> \\"
+  echo "    vault kv put secret/platform/grafana-oidc client_id=pending client_secret=pending"
   echo ""
   exit 11
 fi
@@ -171,6 +177,13 @@ vr write auth/kubernetes/role/eso-role \
   ttl=1h
 
 echo "    Kubernetes auth и роль eso-role настроены (SA secrets-external-secrets)"
+
+# Плейсхолдер в KV, чтобы ExternalSecret в Argo не падал до создания OIDC (тот же путь перезапишется).
+echo "    KV secret/platform/grafana-oidc для ESO (плейсхолдер при отсутствии)..."
+if ! vr kv get secret/platform/grafana-oidc >/dev/null 2>&1; then
+  vr kv put secret/platform/grafana-oidc client_id=pending client_secret=pending
+  echo "    Записано pending; после шага OIDC будут реальные client_id/client_secret."
+fi
 
 echo "==> [5/6] OIDC Vault для Grafana (секреты в KV для ESO)..."
 export VAULT_PUBLIC_ISSUER="${VAULT_PUBLIC_ISSUER:-https://vault.k8s.va.atmodev.net}"
