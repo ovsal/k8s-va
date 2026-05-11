@@ -18,7 +18,7 @@ Vault **не** управляется Argo CD: он ставится **скри�
 - **RBAC для Kubernetes auth**: `platform/bootstrap/vault/kubernetes-auth-delegator.yaml`
 
 Режим работы:
-- **HA + integrated storage (raft)**: сейчас 2 реплики (пока 2 worker-ноды); при добавлении `worker-3+` увеличить в `values.yaml`
+- **HA + integrated storage (raft)**: **3 реплики** при **3+ worker-нодах**; `podAntiAffinity` **required** по `kubernetes.io/hostname` (не более одного server-пода на ноду). Если воркеров меньше трёх — уменьшите `server.ha.replicas` и ослабьте anti-affinity, иначе поды останутся в Pending.
 - Данные: PVC на `StorageClass` **`longhorn-ha`**
 
 Доступ снаружи (UI/API):
@@ -67,7 +67,7 @@ kubectl -n vault exec -it secrets-vault-0 -- sh -lc 'export VAULT_TOKEN="…"; v
 Ожидаемо после полной настройки:
 - `Initialized: true`
 - `Sealed: false`
-- peers = 2 (сейчас) или больше при масштабировании
+- peers = 3 (три реплики raft)
 
 ### Как использовать (для других систем)
 

@@ -8,7 +8,8 @@ server:
     enabled: false
   ha:
     enabled: true
-    replicas: 2
+    # 3 worker-ноды → 3 реплики raft (кворум и разнос по нодам).
+    replicas: 3
     raft:
       enabled: true
       setNodeId: true
@@ -41,15 +42,13 @@ server:
 
   affinity: |
     podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: vault
-                app.kubernetes.io/instance: secrets-vault
-                component: server
-            topologyKey: kubernetes.io/hostname
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              app.kubernetes.io/instance: secrets-vault
+              component: server
+          topologyKey: kubernetes.io/hostname
 
   disruptionBudget:
     enabled: true
