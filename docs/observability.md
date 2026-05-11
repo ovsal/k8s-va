@@ -58,6 +58,8 @@ kubectl -n vault exec secrets-vault-0 -- env VAULT_ADDR=http://127.0.0.1:8200 VA
 
 После появления ключа в KV подождите reconcile ESO или сделайте refresh приложения **root-app** в Argo CD.
 
+Если при логине через Vault в UI видно **`permission denied`**: у userpass-пользователя `grafana-oidc-user` должна быть политика **`grafana-oidc-auth`** с правами на `authorize`, `token`, `userinfo` и `.well-known` провайдера. Выполните снова **`make vault-bootstrap`** (скрипт обновляет политику даже если OIDC-провайдер уже создан).
+
 ## См. также
 
 - `docs/vault.md` — общий поток Vault и `vault-bootstrap`.

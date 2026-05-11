@@ -83,6 +83,8 @@ grafana:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      # OAuth state / заголовки; малый буфер иногда даёт 502 на callback.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
     tls:
       - secretName: grafana-tls
         hosts:
@@ -119,6 +121,13 @@ grafana:
         name: grafana-vault-oauth
         key: client_secret
   grafana.ini:
+    server:
+      root_url: https://grafana.k8s.va.atmodev.net/
+      domain: grafana.k8s.va.atmodev.net
+    security:
+      cookie_secure: true
+      # В YAML без кавычек «none» может стать null (YAML 1.1).
+      cookie_samesite: "none"
     users:
       allow_sign_up: false
     auth:

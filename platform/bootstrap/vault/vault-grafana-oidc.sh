@@ -23,20 +23,37 @@ b64_scope_template() {
   python3 -c "import base64,sys; print(base64.b64encode(sys.argv[1].encode()).decode())" "$1"
 }
 
+# Политика userpass-пользователя Grafana: authorize + token + userinfo + .well-known (раньше только authorize → permission denied).
+write_grafana_oidc_policy() {
+  vr policy write grafana-oidc-auth - <<'POL'
+path "identity/oidc/provider/grafana/authorize" {
+  capabilities = ["read", "update"]
+}
+path "identity/oidc/provider/grafana/token" {
+  capabilities = ["create", "read", "update"]
+}
+path "identity/oidc/provider/grafana/userinfo" {
+  capabilities = ["read"]
+}
+path "identity/oidc/provider/grafana/.well-known/openid-configuration" {
+  capabilities = ["read"]
+}
+path "identity/oidc/provider/grafana/.well-known/keys" {
+  capabilities = ["read"]
+}
+POL
+}
+
+write_grafana_oidc_policy
+
 if vr read identity/oidc/provider/grafana >/dev/null 2>&1; then
-  echo "    OIDC-провайдер grafana уже существует (identity/oidc/provider/grafana)"
+  echo "    OIDC-провайдер grafana уже есть (политика grafana-oidc-auth обновлена)."
   exit 0
 fi
 
 echo "    Создаю OIDC-провайдер Vault для Grafana (userpass → OIDC → Grafana)..."
 
 vr auth enable userpass 2>/dev/null || true
-
-vr policy write grafana-oidc-auth - <<'POL'
-path "identity/oidc/provider/grafana/authorize" {
-  capabilities = ["read"]
-}
-POL
 
 GPASS="${GRAFANA_VAULT_USERPASS_PASSWORD:-}"
 if [[ -z "${GPASS}" ]]; then
