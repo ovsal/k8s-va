@@ -15,6 +15,9 @@ all:
     worker-2:
       ansible_host: 176.113.118.181      # ЗАМЕНИТЬ
       ansible_user: ansible
+    worker-3:
+      ansible_host: 176.113.118.182      # ЗАМЕНИТЬ
+      ansible_user: ansible
   children:
     kube_control_plane:
       hosts:
@@ -25,6 +28,7 @@ all:
       hosts:
         worker-1:
         worker-2:
+        worker-3:
     etcd:
       hosts:
         cp-1:
