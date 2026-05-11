@@ -1,0 +1,17 @@
+# Promtail: логи контейнеров и подов → Loki (после sync Loki, wave 2).
+
+config:
+  clients:
+    - url: http://loki.observability.svc:3100/loki/api/v1/push
+
+tolerations:
+  - effect: NoSchedule
+    operator: Exists
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

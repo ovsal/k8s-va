@@ -1,6 +1,6 @@
 # Деплой кластера (актуально)
 
-Эта инструкция описывает **текущий сценарий**: поднять Kubernetes (Kubespray), затем **bootstrap-скрипт** (MetalLB → ingress-nginx → cert-manager → **Longhorn** → **Vault** → Argo CD), затем **`make vault-bootstrap`** для Vault, и дальше GitOps через Argo CD для остальных компонентов.
+Эта инструкция описывает **текущий сценарий**: поднять Kubernetes (Kubespray), затем **bootstrap-скрипт** (MetalLB → ingress-nginx → cert-manager → **Longhorn** → **Vault** → Argo CD), затем **`make vault-bootstrap`** для Vault (в т.ч. OIDC для Grafana), и дальше GitOps через Argo CD для остальных компонентов, включая **наблюдаемость** (`docs/observability.md`).
 
 В репозитории **больше нет** шагов/целей для MinIO/Velero и т.п. — старые разделы удалены.
 
@@ -11,7 +11,7 @@
 ## Что есть в репозитории
 
 - `cluster/`: inventory и Ansible playbooks для подготовки хостов и Kubespray
-- `platform/bootstrap/`: скрипт и Helm values для MetalLB, ingress-nginx, cert-manager, **Longhorn**, **Vault**, Argo CD; скрипт `vault/vault-bootstrap.sh`
+- `platform/bootstrap/`: скрипт и Helm values для MetalLB, ingress-nginx, cert-manager, **Longhorn**, **Vault**, Argo CD; скрипты `vault/vault-bootstrap.sh`, `vault/vault-grafana-oidc.sh`
 - `Makefile`: команды-обёртки (см. `make help`)
 
 ---
@@ -129,7 +129,7 @@ kubectl get nodes -o wide
 
 **MetalLB → ingress-nginx → cert-manager → Longhorn → Vault → Argo CD** (+ применяет `root-app`).
 
-В конце вызывается **`vault/vault-bootstrap.sh`**: при **первом** запуске на пустом Vault он выведет **root token и unseal keys** и завершится с кодом 11 — сохраните их в **`credentials.env`** в корне репозитория (шаблон: `platform/bootstrap/vault/credentials.env.example`), затем выполните **`make vault-bootstrap`** ещё раз (unseal + Kubernetes auth + роль для ESO).
+В конце вызывается **`vault/vault-bootstrap.sh`**: при **первом** запуске на пустом Vault он выведет **root token и unseal keys** и завершится с кодом 11 — сохраните их в **`credentials.env`** в корне репозитория (см. `docs/vault.md`), затем выполните **`make vault-bootstrap`** ещё раз (unseal + Kubernetes auth + роль для ESO + OIDC Grafana при необходимости).
 
 ```bash
 make bootstrap-platform

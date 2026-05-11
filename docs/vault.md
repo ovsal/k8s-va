@@ -35,16 +35,17 @@ Vault **не** управляется Argo CD: он ставится **скри�
 **Первый запуск** (пустой storage после `make bootstrap-platform`):
 
 1. Скрипт выполняет `vault operator init`, печатает **root token** и **unseal keys** и завершается с кодом **11**.
-2. Скопируйте вывод в файл **`credentials.env`** в **корне репозитория** (файл в `.gitignore`). Шаблон: `platform/bootstrap/vault/credentials.env.example`.
+2. Скопируйте вывод в файл **`credentials.env`** в **корне репозитория** (файл в `.gitignore`). Опционально задайте **`GRAFANA_VAULT_USERPASS_PASSWORD`** (пароль userpass для входа в Vault при логине Grafana через OIDC).
 3. Снова выполните: **`make vault-bootstrap`**
 
 **Второй и последующие запуски** (при наличии `credentials.env`):
 
 - распечатывает все реплики server;
 - включает **KV v2** на `secret/`;
-- настраивает **`auth/kubernetes`**, политику **`eso-policy`**, роль **`eso-role`** для SA **`secrets-external-secrets`** (namespace `external-secrets`).
+- настраивает **`auth/kubernetes`**, политику **`eso-policy`**, роль **`eso-role`** для SA **`secrets-external-secrets`** (namespace `external-secrets`);
+- один раз создаёт **OIDC-провайдер Vault для Grafana** (`platform/bootstrap/vault/vault-grafana-oidc.sh`): userpass-пользователь **`grafana-oidc-user`**, группа **`grafana-admins`**, запись **`secret/platform/grafana-oidc`** для ESO (подробнее: **`docs/observability.md`**).
 
-Argo CD после этого синхронизирует **ESO** и **`ClusterSecretStore`** из Git — они начнут работать, когда Vault распечатан и настроен.
+Argo CD после этого синхронизирует **ESO** и приложения из Git — они начнут работать, когда Vault распечатан и настроен.
 
 Root token и unseal keys храните **вне кластера** (не коммитьте в Git).
 

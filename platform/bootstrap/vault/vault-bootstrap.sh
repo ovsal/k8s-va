@@ -17,11 +17,20 @@ CREDENTIALS_FILE="${REPO_ROOT}/credentials.env"
 export KUBECONFIG="${KUBECONFIG:-${HOME}/.kube/config-k8s-va}"
 
 VAULT_POD="secrets-vault-0"
+# Селектор server-подов (совпадает с Helm chart Vault).
+VAULT_SERVER_LABEL='app.kubernetes.io/name=vault,component=server'
 
 # vault CLI в поде без токена (status / init)
 v0() {
   kubectl exec -n vault "${VAULT_POD}" -- \
     env VAULT_ADDR=http://127.0.0.1:8200 vault "$@"
+}
+
+# JSON статуса; при sealed `vault status` завершается с кодом 2 — иначе с pipefail ломается разбор полей.
+vault_status_json_in_pod() {
+  local pod=${1:-"${VAULT_POD}"}
+  kubectl exec -n vault "${pod}" -- sh -c \
+    'env VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json 2>/dev/null || true'
 }
 
 # vault CLI с root token
@@ -35,9 +44,7 @@ unseal_pod() {
   local pod=$1
   kubectl get pod "${pod}" -n vault &>/dev/null || return 0
   local sealed
-  sealed=$(kubectl exec -n vault "${pod}" -- \
-    env VAULT_ADDR=http://127.0.0.1:8200 \
-    vault status -format=json 2>/dev/null \
+  sealed=$(vault_status_json_in_pod "${pod}" \
     | python3 -c "import sys,json; print(json.load(sys.stdin).get('sealed', True))" \
     2>/dev/null || echo "True")
   if [[ "${sealed}" == "True" ]]; then
@@ -52,12 +59,39 @@ unseal_pod() {
   fi
 }
 
-echo "==> [1/5] Ожидание подов Vault (до 5 мин)..."
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vault,component=server \
-  -n vault --timeout=300s
+echo "==> [1/6] Ожидание подов Vault (до 5 мин)..."
+# Не используем condition=Ready: пока Vault sealed, readiness не проходит (0/1), а init/unseal как раз дальше.
+WAIT_DEADLINE=$((SECONDS + 300))
+while (( SECONDS < WAIT_DEADLINE )); do
+  WANTED_REPLICAS=$(kubectl get sts -n vault secrets-vault -o jsonpath='{.spec.replicas}' 2>/dev/null || true)
+  [[ -n "${WANTED_REPLICAS}" && "${WANTED_REPLICAS}" =~ ^[0-9]+$ ]] || WANTED_REPLICAS=0
+  PODS_JSON=$(kubectl get pods -n vault -l "${VAULT_SERVER_LABEL}" -o json 2>/dev/null || echo '{"items":[]}')
+  if python3 -c "
+import json, sys
+j = json.loads(sys.argv[1])
+want = int(sys.argv[2] or 0)
+items = j.get('items') or []
+if not items:
+    sys.exit(1)
+if want and len(items) < want:
+    sys.exit(1)
+for it in items:
+    if it.get('status', {}).get('phase') != 'Running':
+        sys.exit(1)
+sys.exit(0)
+" "${PODS_JSON}" "${WANTED_REPLICAS}" 2>/dev/null; then
+    break
+  fi
+  sleep 5
+done
+if (( SECONDS >= WAIT_DEADLINE )); then
+  echo "ERROR: таймаут — поды server не в Running или меньше реплик, чем у StatefulSet."
+  kubectl get pods -n vault -l "${VAULT_SERVER_LABEL}" -o wide || true
+  exit 1
+fi
 
-echo "==> [2/5] Проверка инициализации..."
-INITIALIZED=$(v0 status -format=json 2>/dev/null \
+echo "==> [2/6] Проверка инициализации..."
+INITIALIZED=$(vault_status_json_in_pod "${VAULT_POD}" \
   | python3 -c "import sys,json; print(json.load(sys.stdin).get('initialized', False))" \
   2>/dev/null || echo "False")
 
@@ -69,7 +103,7 @@ if [[ "${INITIALIZED}" != "True" ]]; then
   echo ""
   echo "╔════════════════════════════════════════════════════════════════════╗"
   echo "║  VAULT ИНИЦИАЛИЗИРОВАН — сохраните значения вне кластера            ║"
-  echo "║  Скопируйте в credentials.env (см. credentials.env.example)       ║"
+  echo "║  Скопируйте в credentials.env в корне репо (см. docs/vault.md)                    ║"
   echo "║  Затем снова: make vault-bootstrap                                  ║"
   echo "╚════════════════════════════════════════════════════════════════════╝"
   python3 - "${TMP}" <<'PYEOF'
@@ -87,7 +121,7 @@ fi
 
 if [[ ! -f "${CREDENTIALS_FILE}" ]]; then
   echo "ERROR: Нет файла ${CREDENTIALS_FILE}"
-  echo "После первого init создайте его по образцу platform/bootstrap/vault/credentials.env.example"
+  echo "После первого init создайте credentials.env в корне репозитория (см. docs/vault.md)"
   exit 1
 fi
 # shellcheck disable=SC1090
@@ -102,13 +136,13 @@ set +a
   exit 1
 }
 
-echo "==> [3/5] Unseal всех реплик server..."
+echo "==> [3/6] Unseal всех реплик server..."
 while read -r pod; do
   [[ -n "${pod}" ]] || continue
   unseal_pod "${pod}"
-done < <(kubectl get pods -n vault -l 'app.kubernetes.io/name=vault,component=server' -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+done < <(kubectl get pods -n vault -l "${VAULT_SERVER_LABEL}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
 
-echo "==> [4/5] KV v2 на secret/ и Kubernetes auth + роль ESO..."
+echo "==> [4/6] KV v2 на secret/ и Kubernetes auth + роль ESO..."
 vr secrets enable -path=secret kv-v2 2>/dev/null && echo "    KV включён" || echo "    KV уже есть (ok)"
 
 vr auth enable kubernetes 2>/dev/null && echo "    auth/kubernetes включён" || echo "    auth/kubernetes уже есть (ok)"
@@ -138,5 +172,10 @@ vr write auth/kubernetes/role/eso-role \
 
 echo "    Kubernetes auth и роль eso-role настроены (SA secrets-external-secrets)"
 
-echo "==> [5/5] Готово."
-echo "    Дальше: дождитесь синка Argo CD (ESO, ClusterSecretStore) или выполните make vault-bootstrap после установки ESO."
+echo "==> [5/6] OIDC Vault для Grafana (секреты в KV для ESO)..."
+export VAULT_PUBLIC_ISSUER="${VAULT_PUBLIC_ISSUER:-https://vault.k8s.va.atmodev.net}"
+export GRAFANA_PUBLIC_URL="${GRAFANA_PUBLIC_URL:-https://grafana.k8s.va.atmodev.net}"
+bash "${SCRIPT_DIR}/vault-grafana-oidc.sh"
+
+echo "==> [6/6] Готово."
+echo "    Дальше: синк Argo CD (ESO, observability). Логин Grafana: кнопка Vault → userpass grafana-oidc-user (см. docs/observability.md)."

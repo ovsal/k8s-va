@@ -1,0 +1,126 @@
+# kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics, правила.
+# Ingress Grafana + Generic OAuth → Vault OIDC (секрет grafana-vault-oauth из ExternalSecret, wave -1).
+
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+prometheusOperator:
+  nodeSelector:
+    storage.enabled: "true"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+kube-state-metrics:
+  nodeSelector:
+    storage.enabled: "true"
+
+prometheus-node-exporter:
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      storage.enabled: "true"
+    retention: 15d
+    scrapeInterval: 30s
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn-ha
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 40Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+
+alertmanager:
+  alertmanagerSpec:
+    nodeSelector:
+      storage.enabled: "true"
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn-ha
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
+grafana:
+  nodeSelector:
+    storage.enabled: "true"
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: longhorn-ha
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.k8s.va.atmodev.net
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.k8s.va.atmodev.net
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.observability.svc:3100
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+  env:
+    GF_SERVER_ROOT_URL: https://grafana.k8s.va.atmodev.net
+    GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+    GF_AUTH_GENERIC_OAUTH_NAME: Vault
+    GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+    GF_AUTH_GENERIC_OAUTH_USE_PKCE: "false"
+    GF_AUTH_GENERIC_OAUTH_SCOPES: openid user groups
+    GF_AUTH_GENERIC_OAUTH_EMPTY_SCOPES: "false"
+    GF_AUTH_GENERIC_OAUTH_AUTH_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/authorize
+    GF_AUTH_GENERIC_OAUTH_TOKEN_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/token
+    GF_AUTH_GENERIC_OAUTH_API_URL: https://vault.k8s.va.atmodev.net/v1/identity/oidc/provider/grafana/userinfo
+    GF_AUTH_GENERIC_OAUTH_SIGNOUT_REDIRECT_URL: https://vault.k8s.va.atmodev.net/ui/vault/logout
+    GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'"
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+      secretKeyRef:
+        name: grafana-vault-oauth
+        key: client_id
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: grafana-vault-oauth
+        key: client_secret
+  grafana.ini:
+    users:
+      allow_sign_up: true
+    auth:
+      disable_login_form: true
+    auth.anonymous:
+      enabled: false
